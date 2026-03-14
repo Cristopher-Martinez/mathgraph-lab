@@ -1,0 +1,103 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "sqlite"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        Int      @id @default(autoincrement())
+    username  String   @unique
+    password  String
+    createdAt DateTime @default(now())
+}
+
+model Topic {
+    id               Int        @id @default(autoincrement())
+    name             String     @unique
+    createdByClassId Int?
+    createdAt        DateTime   @default(now())
+    exercises        Exercise[]
+    formulas         Formula[]
+    progress         Progress[]
+}
+
+model Formula {
+    id          Int    @id @default(autoincrement())
+    topicId     Int
+    latex       String
+    explanation String
+    topic       Topic  @relation(fields: [topicId], references: [id])
+}
+
+model Exercise {
+    id                 Int      @id @default(autoincrement())
+    topicId            Int
+    latex              String
+    difficulty         String
+    generatedByClassId Int?
+    topic              Topic    @relation(fields: [topicId], references: [id])
+    createdAt          DateTime @default(now())
+    hints              String?
+    steps              String?
+    socratic           String?
+}
+
+model Progress {
+    id        Int      @id @default(autoincrement())
+    topicId   Int
+    completed Boolean  @default(false)
+    score     Float?
+    updatedAt DateTime @updatedAt
+    topic     Topic    @relation(fields: [topicId], references: [id])
+}
+
+model AIInteraction {
+    id        Int      @id @default(autoincrement())
+    prompt    String
+    response  String
+    createdAt DateTime @default(now())
+}
+
+model ClassLog {
+    id         Int          @id @default(autoincrement())
+    date       DateTime
+    title      String?
+    transcript String
+    summary    String?
+    topics     String?
+    formulas   String?
+    createdAt  DateTime     @default(now())
+    images     ClassImage[]
+    chunks     ClassChunk[]
+}
+
+model ClassImage {
+    id       Int      @id @default(autoincrement())
+    classId  Int
+    url      String
+    caption  String?
+    classLog ClassLog @relation(fields: [classId], references: [id])
+}
+
+model TopicDependency {
+    id                 Int  @id @default(autoincrement())
+    parentId           Int
+    childId            Int
+    generatedByClassId Int?
+
+    @@unique([parentId, childId])
+}
+
+model ClassChunk {
+    id        Int      @id @default(autoincrement())
+    classId   Int
+    text      String
+    embedding String
+    index     Int
+    classLog  ClassLog @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+    @@index([classId])
+}

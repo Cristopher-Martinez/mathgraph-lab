@@ -1,0 +1,19 @@
+services:
+  mathgraph:
+    build: .
+    image: ghcr.io/cristopher-martinez/mathgraph-lab:latest
+    container_name: mathgraph-lab
+    restart: unless-stopped
+    ports:
+      - "3002:3001"
+    volumes:
+      - mathgraph-data:/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=file:/data/mathgraph.db
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AUTH_USERS=${AUTH_USERS}
+
+volumes:
+  mathgraph-data:

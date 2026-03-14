@@ -1,0 +1,205 @@
+const BASE_URL = "/api";
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || "Request failed");
+  }
+  return res.json();
+}
+
+export const api = {
+  // Topics
+  getTopics: (params?: { classId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.classId) qs.set("classId", String(params.classId));
+    const query = qs.toString();
+    return request<any[]>(`/topics${query ? "?" + query : ""}`);
+  },
+  getTopic: (id: number) => request<any>(`/topics/${id}`),
+
+  // Formulas
+  getFormulas: () => request<any[]>("/formulas"),
+
+  // Exercises
+  getExercises: (params?: {
+    topicId?: number;
+    difficulty?: string;
+    classId?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.topicId) qs.set("topicId", String(params.topicId));
+    if (params?.difficulty) qs.set("difficulty", params.difficulty);
+    if (params?.classId) qs.set("classId", String(params.classId));
+    const query = qs.toString();
+    return request<any[]>(`/exercises${query ? "?" + query : ""}`);
+  },
+
+  checkExercise: (data: { type: string; params: any; answer: any }) =>
+    request<any>("/exercises/check", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  solveExercise: (data: { type: string; params: any }) =>
+    request<any>("/exercises/solve", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // AI
+  explain: (problem: string) =>
+    request<{ explanation: string }>("/ai/explain", {
+      method: "POST",
+      body: JSON.stringify({ problem }),
+    }),
+
+  // Progress
+  getProgress: () => request<any[]>("/progress"),
+  updateProgress: (data: {
+    topicId: number;
+    completed?: boolean;
+    score?: number;
+  }) =>
+    request<any>("/progress", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Training
+  startTraining: (data: { mode: string; topicId?: number; count?: number }) =>
+    request<any>("/training/start", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Tutor Socrático
+  tutorStart: (exerciseId: number) =>
+    request<any>("/tutor/start", {
+      method: "POST",
+      body: JSON.stringify({ exerciseId }),
+    }),
+
+  tutorAnswer: (exerciseId: number, step: number, answer: string) =>
+    request<any>("/tutor/answer", {
+      method: "POST",
+      body: JSON.stringify({ exerciseId, step, answer }),
+    }),
+
+  tutorAnswerStream: (exerciseId: number, step: number, answer: string) =>
+    fetch(`${BASE_URL}/tutor/answer-stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ exerciseId, step, answer }),
+    }),
+
+  tutorHint: (
+    exerciseId: number,
+    step: number,
+    hintLevel: number,
+    previousHints?: string[],
+    studentAttempts?: string[],
+  ) =>
+    request<any>("/tutor/hint", {
+      method: "POST",
+      body: JSON.stringify({
+        exerciseId,
+        step,
+        hintLevel,
+        previousHints,
+        studentAttempts,
+      }),
+    }),
+
+  tutorSummary: (data: {
+    exerciseId: number;
+    stepsSolved: number;
+    hintsUsed: number;
+    stepsRevealed: number;
+  }) =>
+    request<any>("/tutor/summary", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  tutorAsk: (exerciseId: number, step: number, question: string) =>
+    request<{ answer: string; isActuallyAnswer: boolean }>("/tutor/ask", {
+      method: "POST",
+      body: JSON.stringify({ exerciseId, step, question }),
+    }),
+
+  // ClassLog - Registro de Clases
+  getClassLogs: () => request<any[]>("/class-log"),
+
+  getClassLog: (id: number) => request<any>(`/class-log/${id}`),
+
+  createClassLog: (data: {
+    date: string;
+    transcript: string;
+    images?: { base64: string; mimeType?: string; caption?: string }[];
+  }) =>
+    request<any>("/class-log", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updateClassLog: (
+    id: number,
+    data: {
+      date?: string;
+      title?: string;
+      images?: { base64: string; mimeType?: string; caption?: string }[];
+    },
+  ) =>
+    request<any>(`/class-log/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deleteClassLog: (id: number) =>
+    request<any>(`/class-log/${id}`, {
+      method: "DELETE",
+    }),
+
+  generateClassExercises: (id: number, cantidad?: number) =>
+    request<any>(`/class-log/${id}/generate-exercises`, {
+      method: "POST",
+      body: JSON.stringify({ cantidad: cantidad || 5 }),
+    }),
+
+  getWeeklyTimeline: () => request<any[]>("/class-log/timeline/weekly"),
+
+  reconstructCurriculum: () =>
+    request<any>("/class-log/curriculum/reconstruct"),
+
+  getDAG: () => request<any>("/class-log/dag"),
+
+  extendDAG: () => request<any>("/class-log/dag/extend", { method: "POST" }),
+
+  auditDAG: () => request<any>("/class-log/dag/audit", { method: "POST" }),
+
+  getGenerationStatus: (classId: number) =>
+    request<any>(`/class-log/generation-status/${classId}`),
+
+  getActiveGenerations: () => request<any[]>("/class-log/generation-status"),
+
+  analyzeClassImage: (id: number, base64: string, mimeType?: string) =>
+    request<any>(`/class-log/${id}/analyze-image`, {
+      method: "POST",
+      body: JSON.stringify({ base64, mimeType: mimeType || "image/jpeg" }),
+    }),
+
+  validateAnswer: (data: {
+    userAnswer: string;
+    expectedAnswer: string;
+    exercisePrompt?: string;
+  }) =>
+    request<{ correct: boolean; feedback: string }>("/ai/validate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};

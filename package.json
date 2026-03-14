@@ -1,0 +1,21 @@
+{
+  "name": "mathgraph-lab",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "server": "npx prisma generate && npx prisma migrate deploy && cd backend && npx ts-node src/seed.ts && npx ts-node src/server.ts",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "db:migrate": "npx prisma migrate dev --name init",
+    "db:generate": "npx prisma generate",
+    "db:seed": "cd backend && npx ts-node src/seed.ts",
+    "test": "cd backend && npm test"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prisma": "^5.20.0"
+  }
+}
