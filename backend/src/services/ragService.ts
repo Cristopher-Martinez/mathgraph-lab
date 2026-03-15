@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
+import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 // ─── Chunking ─────────────────────────────────────────
 
@@ -79,6 +80,10 @@ function findBestCut(text: string, maxLen: number): number {
  * Genera embeddings usando Gemini text-embedding-004.
  */
 async function generateEmbedding(text: string): Promise<number[]> {
+  const key = cacheKey("emb", text);
+  const cached = await getCached<number[]>(key);
+  if (cached) return cached;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
 
@@ -88,13 +93,31 @@ async function generateEmbedding(text: string): Promise<number[]> {
   });
 
   const result = await model.embedContent(text);
-  return result.embedding.values;
+  const values = result.embedding.values;
+  await setCached(key, values, TTL.EMBEDDING);
+  return values;
 }
 
 /**
  * Genera embeddings para múltiples textos en batch.
  */
 async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+  // Check cache for each text individually
+  const results: number[][] = new Array(texts.length);
+  const uncachedIndices: number[] = [];
+
+  for (let i = 0; i < texts.length; i++) {
+    const key = cacheKey("emb", texts[i]);
+    const cached = await getCached<number[]>(key);
+    if (cached) {
+      results[i] = cached;
+    } else {
+      uncachedIndices.push(i);
+    }
+  }
+
+  if (uncachedIndices.length === 0) return results;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
 
@@ -103,17 +126,19 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     model: "models/gemini-embedding-001",
   });
 
-  // Procesar en batches de 5 para no sobrecargar la API
-  const results: number[][] = [];
-  for (let i = 0; i < texts.length; i += 5) {
-    const batch = texts.slice(i, i + 5);
+  // Procesar solo los no cacheados en batches de 5
+  for (let i = 0; i < uncachedIndices.length; i += 5) {
+    const batchIndices = uncachedIndices.slice(i, i + 5);
     const batchResults = await Promise.all(
-      batch.map(async (text) => {
-        const result = await model.embedContent(text);
-        return result.embedding.values;
+      batchIndices.map(async (idx) => {
+        const result = await model.embedContent(texts[idx]);
+        return { idx, values: result.embedding.values };
       }),
     );
-    results.push(...batchResults);
+    for (const { idx, values } of batchResults) {
+      results[idx] = values;
+      await setCached(cacheKey("emb", texts[idx]), values, TTL.EMBEDDING);
+    }
   }
 
   return results;

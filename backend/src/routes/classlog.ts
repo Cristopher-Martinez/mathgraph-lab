@@ -3,7 +3,6 @@ import prisma from "../prismaClient";
 import {
   auditDAG,
   extendDAG,
-  propagateClassChanges,
   rollbackClass,
 } from "../services/autoPropagation";
 import { reconstruirCurriculo } from "../services/curriculumReconstruction";
@@ -18,6 +17,7 @@ import {
   validarImagen,
 } from "../services/imageAnalysis";
 import { indexClassTranscript } from "../services/ragService";
+import { enqueuePropagation } from "../services/jobQueue";
 import {
   analizarTranscripcion,
   ImagenContexto,
@@ -160,14 +160,9 @@ router.post("/", async (req: Request, res: Response) => {
       include: { images: true },
     });
 
-    // 4. Propagar cambios automáticamente (topics, exercises, DAG)
-    // Fire-and-forget: no bloquear la respuesta al usuario
-    propagateClassChanges(classLog.id).catch((err) => {
-      console.error(
-        "[ClassLog] Error en auto-propagación (no bloqueante):",
-        err,
-      );
-      failGeneration(classLog.id, err.message || "Error en propagación");
+    // 4. Propagar cambios vía cola de trabajos (BullMQ con fallback)
+    enqueuePropagation(classLog.id).catch((err) => {
+      console.error("[ClassLog] Error encolando propagación:", err);
     });
 
     // 5. Indexar transcripción para RAG (fire-and-forget)

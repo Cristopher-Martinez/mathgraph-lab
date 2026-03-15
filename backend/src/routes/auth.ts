@@ -1,6 +1,9 @@
+import { randomUUID } from "crypto";
 import { Router } from "express";
+import { getRedis } from "../services/redisClient";
 
 const router = Router();
+const SESSION_TTL = 24 * 3600; // 24 hours
 
 // Credenciales desde variable de entorno (formato: user1:pass1,user2:pass2)
 function getUsers() {
@@ -17,9 +20,9 @@ function getUsers() {
 
 /**
  * POST /auth/login
- * Login simple con usuario y contraseña
+ * Login con sesión persistida en Redis
  */
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -27,7 +30,6 @@ router.post("/login", (req, res) => {
       return res.status(400).json({ error: "Username y password requeridos" });
     }
 
-    // Verificar credenciales
     const user = getUsers().find(
       (u) => u.username === username && u.password === password,
     );
@@ -36,8 +38,14 @@ router.post("/login", (req, res) => {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Generar token simple (base64)
-    const token = Buffer.from(`${username}:${Date.now()}`).toString("base64");
+    // Generar token seguro y guardar en Redis
+    const token = randomUUID();
+    const redis = getRedis();
+    await redis.setex(
+      `session:${token}`,
+      SESSION_TTL,
+      JSON.stringify({ username, createdAt: Date.now() }),
+    );
 
     res.json({
       token,
@@ -51,9 +59,9 @@ router.post("/login", (req, res) => {
 
 /**
  * POST /auth/verify
- * Verificar si el token es válido
+ * Verificar token contra Redis
  */
-router.post("/verify", (req, res) => {
+router.post("/verify", async (req, res) => {
   try {
     const { token } = req.body;
 
@@ -61,20 +69,35 @@ router.post("/verify", (req, res) => {
       return res.status(401).json({ valid: false });
     }
 
-    // Decodificar token
-    const decoded = Buffer.from(token, "base64").toString();
-    const [username] = decoded.split(":");
+    const redis = getRedis();
+    const raw = await redis.get(`session:${token}`);
 
-    // Verificar que el usuario existe
-    const user = getUsers().find((u) => u.username === username);
-
-    if (user) {
-      res.json({ valid: true, user: { username } });
+    if (raw) {
+      const session = JSON.parse(raw);
+      res.json({ valid: true, user: { username: session.username } });
     } else {
       res.status(401).json({ valid: false });
     }
   } catch (error: any) {
     res.status(401).json({ valid: false });
+  }
+});
+
+/**
+ * POST /auth/logout
+ * Invalidar sesión en Redis
+ */
+router.post("/logout", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const redis = getRedis();
+      await redis.del(`session:${token}`);
+    }
+    res.json({ success: true });
+  } catch {
+    res.json({ success: true });
   }
 });
 

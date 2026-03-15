@@ -70,7 +70,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("auth_token", data.token);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const storedToken = localStorage.getItem("auth_token");
+      if (storedToken) {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${storedToken}`,
+          },
+        });
+      }
+    } catch {
+      // Best-effort logout
+    }
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth_token");

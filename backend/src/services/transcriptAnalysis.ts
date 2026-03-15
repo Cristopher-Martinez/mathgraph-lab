@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 // Imagen de contexto para el análisis
 export interface ImagenContexto {
@@ -198,6 +199,11 @@ async function analizarChunk(
   totalParts: number,
   imagenes?: ImagenContexto[],
 ): Promise<TranscriptAnalysisResult> {
+  const imgsHash = imagenes ? imagenes.map((i) => i.base64.slice(0, 64)).join(",") : "";
+  const key = cacheKey("chunk", `${chunk}|${partNum}|${totalParts}|${imgsHash}`);
+  const cached = await getCached<TranscriptAnalysisResult>(key);
+  if (cached) return cached;
+
   const model = getModel();
   const prompt =
     PROMPT_CHUNK.replace("{partNum}", String(partNum)).replace(
@@ -213,7 +219,9 @@ async function analizarChunk(
 
   const result = await model.generateContent(parts);
   const texto = result.response.text();
-  return parseAnalysis(extractJson(texto)) || EMPTY_RESULT;
+  const parsed = parseAnalysis(extractJson(texto)) || EMPTY_RESULT;
+  await setCached(key, parsed, TTL.TRANSCRIPT);
+  return parsed;
 }
 
 /**
@@ -369,6 +377,11 @@ async function analizarChunkUnico(
   transcripcion: string,
   imagenes?: ImagenContexto[],
 ): Promise<TranscriptAnalysisResult> {
+  const imgsHash = imagenes ? imagenes.map((i) => i.base64.slice(0, 64)).join(",") : "";
+  const key = cacheKey("transcript", `${transcripcion}|${imgsHash}`);
+  const cached = await getCached<TranscriptAnalysisResult>(key);
+  if (cached) return cached;
+
   const model = getModel();
   const prompt = `${PROMPT_TRANSCRIPCION}\n\nTranscripción:\n${transcripcion}`;
 
@@ -383,5 +396,7 @@ async function analizarChunkUnico(
 
   const result = await model.generateContent(parts);
   const texto = result.response.text();
-  return parseAnalysis(extractJson(texto)) || EMPTY_RESULT;
+  const parsed = parseAnalysis(extractJson(texto)) || EMPTY_RESULT;
+  await setCached(key, parsed, TTL.TRANSCRIPT);
+  return parsed;
 }

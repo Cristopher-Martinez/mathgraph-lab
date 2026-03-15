@@ -16,6 +16,32 @@ export default function TrainingPage() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finished, setFinished] = useState(false);
+  const [resumePrompt, setResumePrompt] = useState<any>(null);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const savedId = localStorage.getItem("training_session_id");
+    if (savedId) {
+      api.resumeTraining(savedId).then((data) => {
+        setResumePrompt(data);
+      }).catch(() => {
+        localStorage.removeItem("training_session_id");
+      });
+    }
+  }, []);
+
+  // Auto-save after each answer
+  const autoSave = (newResults: any[], newCurrent: number) => {
+    const sessionId = session?.sessionId;
+    if (!sessionId) return;
+    api.saveTraining({
+      sessionId,
+      current: newCurrent,
+      answers: [],
+      results: newResults,
+      timeLeft,
+    }).catch(() => {});
+  };
 
   const startSession = async (selectedMode: TrainingMode) => {
     setMode(selectedMode);
@@ -23,18 +49,45 @@ export default function TrainingPage() {
     setCurrent(0);
     setFinished(false);
     setFeedback(null);
+    setResumePrompt(null);
     try {
       const data = await api.startTraining({
         mode: selectedMode,
         count: selectedMode === "exam" ? 10 : 5,
       });
       setSession(data);
+      localStorage.setItem("training_session_id", data.sessionId);
       if (data.timeLimit) {
         setTimeLeft(data.timeLimit);
       }
     } catch {
       setSession(null);
     }
+  };
+
+  const resumeSession = () => {
+    if (!resumePrompt) return;
+    setSession(resumePrompt);
+    setMode(resumePrompt.mode);
+    setCurrent(resumePrompt.current || 0);
+    setResults(resumePrompt.results || []);
+    if (resumePrompt.timeLeft !== undefined) {
+      setTimeLeft(resumePrompt.timeLeft);
+    } else if (resumePrompt.timeLimit) {
+      setTimeLeft(resumePrompt.timeLimit);
+    }
+    setResumePrompt(null);
+    setFinished(false);
+    setFeedback(null);
+  };
+
+  const dismissResume = () => {
+    const savedId = localStorage.getItem("training_session_id");
+    if (savedId) {
+      api.finishTraining(savedId).catch(() => {});
+      localStorage.removeItem("training_session_id");
+    }
+    setResumePrompt(null);
   };
 
   useEffect(() => {
@@ -66,10 +119,12 @@ export default function TrainingPage() {
         expected: ex.steps,
         aiFeedback: validation.feedback,
       });
-      setResults((r) => [
-        ...r,
+      const newResults = [
+        ...results,
         { correct: validation.correct, question: ex.latex },
-      ]);
+      ];
+      setResults(newResults);
+      autoSave(newResults, current);
     } catch {
       const userAnswer = answer.trim().toLowerCase();
       const expected = (ex.steps || "").trim().toLowerCase();
@@ -77,13 +132,20 @@ export default function TrainingPage() {
         userAnswer === expected ||
         userAnswer.replace(/\s/g, "") === expected.replace(/\s/g, "");
       setFeedback({ correct, expected: ex.steps });
-      setResults((r) => [...r, { correct, question: ex.latex }]);
+      const newResults = [...results, { correct, question: ex.latex }];
+      setResults(newResults);
+      autoSave(newResults, current);
     }
   };
 
   const handleNext = () => {
     if (current + 1 >= session.exercises.length) {
       setFinished(true);
+      // Clean up session
+      if (session?.sessionId) {
+        api.finishTraining(session.sessionId).catch(() => {});
+        localStorage.removeItem("training_session_id");
+      }
     } else {
       setCurrent((c) => c + 1);
       setAnswer("");
@@ -101,6 +163,33 @@ export default function TrainingPage() {
   if (!mode) {
     return (
       <div className="space-y-6">
+        {/* Resume prompt */}
+        {resumePrompt && (
+          <div className="bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1">
+              <p className="font-medium text-indigo-800 dark:text-indigo-300">
+                Tienes una sesión en progreso
+              </p>
+              <p className="text-sm text-indigo-600 dark:text-indigo-400">
+                Modo: {resumePrompt.mode} &middot; Ejercicio{" "}
+                {(resumePrompt.current || 0) + 1}/
+                {resumePrompt.exercises?.length || "?"}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={resumeSession}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                Continuar
+              </button>
+              <button
+                onClick={dismissResume}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm">
+                Nueva sesión
+              </button>
+            </div>
+          </div>
+        )}
         <h1 className="text-3xl font-bold dark:text-gray-100">
           Modo de Entrenamiento
         </h1>

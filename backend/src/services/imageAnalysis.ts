@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as fs from "fs";
 import * as path from "path";
+import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 // Resultado del análisis de imagen
 export interface ImageAnalysisResult {
@@ -91,6 +92,10 @@ export async function analizarImagen(
   imagenBase64: string,
   mimeType: string = "image/jpeg",
 ): Promise<ImageAnalysisResult> {
+  const key = cacheKey("img", imagenBase64.slice(0, 2048) + mimeType);
+  const cached = await getCached<ImageAnalysisResult>(key);
+  if (cached) return cached;
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY no está configurada");
@@ -132,7 +137,7 @@ export async function analizarImagen(
 
   try {
     const parsed = JSON.parse(jsonStr);
-    return {
+    const result: ImageAnalysisResult = {
       formulas: parsed.formulas || [],
       ecuaciones: parsed.ecuaciones || [],
       diagramas: parsed.diagramas || [],
@@ -140,6 +145,8 @@ export async function analizarImagen(
       desigualdades: parsed.desigualdades || [],
       textoDetectado: parsed.textoDetectado || "",
     };
+    await setCached(key, result, TTL.IMAGE);
+    return result;
   } catch {
     return resultadoVacio(`JSON inválido: ${texto}`);
   }

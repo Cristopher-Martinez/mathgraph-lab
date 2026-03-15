@@ -1,7 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import rateLimit from "express-rate-limit";
+import RedisStore from "rate-limit-redis";
 import prisma from "../prismaClient";
+import { getRedis } from "../services/redisClient";
 
 const router = Router();
 
@@ -9,6 +11,9 @@ const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: { error: "Too many AI requests. Please wait." },
+  store: new RedisStore({
+    sendCommand: (...args: string[]) => (getRedis() as any).call(...args),
+  }),
 });
 
 router.use(aiLimiter);

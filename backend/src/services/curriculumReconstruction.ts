@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
+import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 export interface CurriculumWeek {
   semana: number;
@@ -38,6 +39,12 @@ export async function reconstruirCurriculo(): Promise<CurriculumResult> {
     titulo: c.summary?.substring(0, 100) || `Clase ${c.id}`,
     temas: safeParseJson(c.topics),
   }));
+
+  // Check cache
+  const cInput = clasesConTemas.map((c) => `${c.id}:${c.fecha}:${c.temas.join(",")}`).join("|");
+  const key = cacheKey("curriculum", cInput);
+  const cached = await getCached<CurriculumResult>(key);
+  if (cached) return cached;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -99,10 +106,12 @@ Responde SOLO con JSON válido:
     // Actualizar tabla de dependencias
     await actualizarDependencias(parsed.dependencias || []);
 
-    return {
+    const resultado: CurriculumResult = {
       semanas: parsed.semanas || [],
       dependencias: parsed.dependencias || [],
     };
+    await setCached(key, resultado, TTL.CURRICULUM);
+    return resultado;
   } catch (error) {
     console.error("Error en reconstrucción curricular:", error);
     return reconstruccionBasica(clasesConTemas);

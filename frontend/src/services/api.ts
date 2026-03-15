@@ -1,8 +1,12 @@
 const BASE_URL = "/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = localStorage.getItem("auth_token");
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
   if (!res.ok) {
@@ -75,6 +79,24 @@ export const api = {
     request<any>("/training/start", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  saveTraining: (data: {
+    sessionId: string;
+    current: number;
+    answers: any[];
+    results: any[];
+    timeLeft?: number | null;
+  }) =>
+    request<any>("/training/save", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  resumeTraining: (sessionId: string) =>
+    request<any>(`/training/resume/${sessionId}`),
+  finishTraining: (sessionId: string) =>
+    request<any>("/training/finish", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
     }),
 
   // Tutor Socrático
