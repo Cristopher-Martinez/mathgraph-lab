@@ -11,7 +11,7 @@ import { generarEjercicios } from "../services/exerciseGeneration";
 import {
   failGeneration,
   getActiveGenerations,
-  getGenerationStatus,
+  getGenerationStatusById,
 } from "../services/generationStatus";
 import {
   procesarImagenesBatch,
@@ -221,13 +221,13 @@ router.post("/", async (req: Request, res: Response) => {
  * GET /class-log/generation-status/:classId
  * Consultar el estado de generación en background para una clase
  */
-router.get("/generation-status/:classId", (req: Request, res: Response) => {
+router.get("/generation-status/:classId", async (req: Request, res: Response) => {
   const classId = parseInt(req.params.classId, 10);
   if (isNaN(classId)) {
     res.status(400).json({ error: "classId inválido" });
     return;
   }
-  const status = getGenerationStatus(classId);
+  const status = await getGenerationStatusById(classId);
   if (!status) {
     res.json({ status: "none" });
     return;
@@ -239,8 +239,8 @@ router.get("/generation-status/:classId", (req: Request, res: Response) => {
  * GET /class-log/generation-status
  * Consultar todas las generaciones activas
  */
-router.get("/generation-status", (_req: Request, res: Response) => {
-  res.json(getActiveGenerations());
+router.get("/generation-status", async (_req: Request, res: Response) => {
+  res.json(await getActiveGenerations());
 });
 
 /**

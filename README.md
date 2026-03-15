@@ -10,27 +10,27 @@ AI-powered mathematics learning platform with adaptive curriculum, interactive g
 
 ## Features
 
-| Module | Description |
-|--------|-------------|
-| **Dashboard** | Student progress overview with topic cards and learning metrics |
-| **Topic Explorer** | Browse math topics with formulas, exercises, and prerequisites |
-| **DAG Map** | Interactive dependency graph showing the learning path between topics |
-| **Practice** | Solve exercises with instant feedback and interval visualization |
-| **Geometry Lab** | Interactive canvas for points, distances, slopes, midpoints, and line equations |
-| **AI Tutor** | Socratic-method tutoring with step-by-step explanations (Gemini API) |
-| **Training Mode** | Guided practice, timed drills, and full exam simulator |
-| **Class Log** | Record class sessions with transcript analysis and image processing |
-| **RAG Chat** | Ask questions about class content with context-aware AI responses |
+| Module             | Description                                                                     |
+| ------------------ | ------------------------------------------------------------------------------- |
+| **Dashboard**      | Student progress overview with topic cards and learning metrics                 |
+| **Topic Explorer** | Browse math topics with formulas, exercises, and prerequisites                  |
+| **DAG Map**        | Interactive dependency graph showing the learning path between topics           |
+| **Practice**       | Solve exercises with instant feedback and interval visualization                |
+| **Geometry Lab**   | Interactive canvas for points, distances, slopes, midpoints, and line equations |
+| **AI Tutor**       | Socratic-method tutoring with step-by-step explanations (Gemini API)            |
+| **Training Mode**  | Guided practice, timed drills, and full exam simulator                          |
+| **Class Log**      | Record class sessions with transcript analysis and image processing             |
+| **RAG Chat**       | Ask questions about class content with context-aware AI responses               |
 
 ## Tech Stack
 
-| Layer | Technologies |
-|-------|-------------|
+| Layer        | Technologies                                                             |
+| ------------ | ------------------------------------------------------------------------ |
 | **Frontend** | React 18, TypeScript, Tailwind CSS, Vite, KaTeX, React Konva, React Flow |
-| **Backend** | Node.js, Express, TypeScript |
-| **Database** | Prisma ORM + SQLite |
-| **AI** | Google Gemini API (2.5-flash / 2.5-pro), Tesseract.js (OCR) |
-| **Infra** | Docker, Docker Compose, Nginx, GitHub Actions CI/CD |
+| **Backend**  | Node.js, Express, TypeScript                                             |
+| **Database** | Prisma ORM + SQLite                                                      |
+| **AI**       | Google Gemini API (2.5-flash / 2.5-pro), Tesseract.js (OCR)              |
+| **Infra**    | Docker, Docker Compose, Nginx, GitHub Actions CI/CD                      |
 
 ## Quick Start
 
@@ -73,11 +73,11 @@ Frontend: `http://localhost:5173` — Backend: `http://localhost:3001`
 
 ### Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GEMINI_API_KEY` | No | Google Gemini API key for AI features. App works offline without it. |
-| `AUTH_USERS` | Yes | Login credentials in format `user1:pass1,user2:pass2` |
-| `DATABASE_URL` | Yes | Prisma database URL (default: `file:../prisma/dev.db`) |
+| Variable         | Required | Description                                                          |
+| ---------------- | -------- | -------------------------------------------------------------------- |
+| `GEMINI_API_KEY` | No       | Google Gemini API key for AI features. App works offline without it. |
+| `AUTH_USERS`     | Yes      | Login credentials in format `user1:pass1,user2:pass2`                |
+| `DATABASE_URL`   | Yes      | Prisma database URL (default: `file:../prisma/dev.db`)               |
 
 ## Math Solver Engine
 
@@ -109,13 +109,13 @@ Deterministic algebraic solver with no AI dependency:
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start frontend dev server |
-| `npm run server` | Start backend (auto-migrate + seed) |
-| `npm test` | Run test suite |
-| `npm run db:migrate` | Apply database migrations |
-| `npm run db:seed` | Seed database with exercises |
+| Command              | Description                         |
+| -------------------- | ----------------------------------- |
+| `npm run dev`        | Start frontend dev server           |
+| `npm run server`     | Start backend (auto-migrate + seed) |
+| `npm test`           | Run test suite                      |
+| `npm run db:migrate` | Apply database migrations           |
+| `npm run db:seed`    | Seed database with exercises        |
 
 ## Docker Deployment
 

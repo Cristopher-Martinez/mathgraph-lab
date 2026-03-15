@@ -1,70 +1,51 @@
 import { useEffect, useState } from "react";
-import { api } from "../services/api";
+import {
+  useGeneration,
+  type GenerationStatus,
+} from "../context/GenerationContext";
 
-interface GenerationStep {
-  label: string;
-  status: "pending" | "running" | "done" | "error";
-  detail?: string;
-}
-
-interface GenerationStatus {
-  classId: number;
-  status: "running" | "done" | "error" | "none";
-  steps?: GenerationStep[];
-  startedAt?: number;
-  completedAt?: number;
-  error?: string;
-}
-
-export default function GenerationStatusPanel({
-  classId,
-  onDone,
-}: {
-  classId: number | null;
-  onDone?: () => void;
-}) {
-  const [status, setStatus] = useState<GenerationStatus | null>(null);
-  const [visible, setVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+export default function GenerationStatusPanel() {
+  const { generations } = useGeneration();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState(false);
+  const [autoDismiss, setAutoDismiss] = useState<Set<string>>(new Set());
 
+  // Mostrar las generaciones activas o recién terminadas (no dismisseadas)
+  const visible = Array.from(generations.values()).filter(
+    (g) => !dismissed.has(`${g.type}:${g.classId}`),
+  );
+
+  // Auto-dismiss tras 8s cuando completa
   useEffect(() => {
-    if (!classId) return;
-    setDismissed(false);
-    setVisible(true);
-    setExpanded(false);
-
-    const poll = setInterval(async () => {
-      try {
-        const data = await api.getGenerationStatus(classId);
-        if (data.status === "none") return;
-        setStatus(data);
-
-        if (data.status === "done" || data.status === "error") {
-          clearInterval(poll);
-          if (data.status === "done") {
-            onDone?.();
-            setTimeout(() => setVisible(false), 6000);
-          }
-        }
-      } catch {
-        // Ignore polling errors
+    for (const g of visible) {
+      const key = `${g.type}:${g.classId}`;
+      if (
+        (g.status === "done" || g.status === "error") &&
+        !autoDismiss.has(key)
+      ) {
+        setAutoDismiss((prev) => new Set(prev).add(key));
+        setTimeout(() => {
+          setDismissed((prev) => new Set(prev).add(key));
+        }, 8000);
       }
-    }, 1500);
+    }
+  }, [visible, autoDismiss]);
 
-    return () => clearInterval(poll);
-  }, [classId]);
+  if (visible.length === 0) return null;
 
-  if (!visible || dismissed || !classId) return null;
+  // Mostrar la primera generación activa como principal
+  const primary: GenerationStatus =
+    visible.find((g) => g.status === "running") || visible[0];
 
-  const steps = status?.steps || [];
-  const isRunning = status?.status === "running";
-  const isDone = status?.status === "done";
-  const isError = status?.status === "error";
+  const steps = primary.steps || [];
+  const isRunning = primary.status === "running";
+  const isDone = primary.status === "done";
+  const isError = primary.status === "error";
   const completedSteps = steps.filter((s) => s.status === "done").length;
   const totalSteps = steps.length;
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
   const currentStep = steps.find((s) => s.status === "running");
+  const typeLabel = primary.type === "notes" ? "apuntes" : "clase";
 
   return (
     <div
@@ -75,7 +56,7 @@ export default function GenerationStatusPanel({
             ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-800"
             : "bg-white dark:bg-gray-800 border-indigo-200 dark:border-indigo-800"
       }`}>
-      {/* Progress bar - always on top */}
+      {/* Progress bar */}
       {isRunning && (
         <div className="h-0.5 bg-gray-200 dark:bg-gray-700">
           <div
@@ -112,12 +93,19 @@ export default function GenerationStatusPanel({
           }`}>
           {isRunning
             ? currentStep
-              ? currentStep.label
-              : "Generando contenido..."
+              ? `[${typeLabel}] ${currentStep.label}`
+              : `Generando ${typeLabel}...`
             : isDone
-              ? "Generación completada — ejercicios disponibles"
-              : "Error en generación"}
+              ? `Generación de ${typeLabel} completada`
+              : `Error en generación de ${typeLabel}`}
         </span>
+
+        {/* Active count */}
+        {visible.filter((g) => g.status === "running").length > 1 && (
+          <span className="text-[11px] text-indigo-500 dark:text-indigo-400 flex-shrink-0">
+            +{visible.filter((g) => g.status === "running").length - 1} más
+          </span>
+        )}
 
         {/* Step counter */}
         {totalSteps > 0 && (
@@ -126,17 +114,16 @@ export default function GenerationStatusPanel({
           </span>
         )}
 
-        {/* Spacer */}
         <div className="flex-1" />
 
         {/* Error detail */}
-        {isError && status?.error && (
+        {isError && primary.error && (
           <span className="text-[11px] text-red-500 dark:text-red-400 truncate max-w-[200px]">
-            {status.error}
+            {primary.error}
           </span>
         )}
 
-        {/* Expand/collapse button */}
+        {/* Expand/collapse */}
         {steps.length > 0 && (
           <button
             onClick={() => setExpanded(!expanded)}
@@ -157,9 +144,18 @@ export default function GenerationStatusPanel({
           </button>
         )}
 
-        {/* Dismiss button */}
+        {/* Dismiss */}
         <button
-          onClick={() => setDismissed(true)}
+          onClick={() =>
+            setDismissed(
+              (prev) =>
+                new Set(
+                  [...prev].concat(
+                    visible.map((g) => `${g.type}:${g.classId}`),
+                  ),
+                ),
+            )
+          }
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-0.5"
           aria-label="Cerrar">
           <svg
@@ -179,7 +175,7 @@ export default function GenerationStatusPanel({
 
       {/* Expandable steps detail */}
       {expanded && steps.length > 0 && (
-        <div className="px-5 pb-2.5 pt-0 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-200/50 dark:border-gray-700/50 pt-2">
+        <div className="px-5 pb-2.5 flex flex-wrap gap-x-4 gap-y-1 border-t border-gray-200/50 dark:border-gray-700/50 pt-2">
           {steps.map((step, i) => (
             <div key={i} className="flex items-center gap-1.5 text-[11px]">
               <span className="flex-shrink-0">

@@ -6,10 +6,13 @@ const router = Router();
 function getUsers() {
   const raw = process.env.AUTH_USERS;
   if (!raw) return [];
-  return raw.split(",").map((entry) => {
-    const [username, password] = entry.split(":");
-    return { username: username.trim(), password: password.trim() };
-  }).filter((u) => u.username && u.password);
+  return raw
+    .split(",")
+    .map((entry) => {
+      const [username, password] = entry.split(":");
+      return { username: username.trim(), password: password.trim() };
+    })
+    .filter((u) => u.username && u.password);
 }
 
 /**

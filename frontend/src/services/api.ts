@@ -182,6 +182,15 @@ export const api = {
 
   auditDAG: () => request<any>("/class-log/dag/audit", { method: "POST" }),
 
+  // Notes - Apuntes de clase
+  getNotes: (classId?: number) => {
+    const qs = classId ? `?classId=${classId}` : "";
+    return request<any>(`/notes${qs}`);
+  },
+  getNotesClasses: () => request<any[]>("/notes/classes"),
+  regenerateNotes: (classId: number) =>
+    request<any>(`/notes/${classId}/regenerate`, { method: "POST" }),
+
   getGenerationStatus: (classId: number) =>
     request<any>(`/class-log/generation-status/${classId}`),
 

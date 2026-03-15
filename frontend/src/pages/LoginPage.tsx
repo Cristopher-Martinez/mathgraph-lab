@@ -94,8 +94,6 @@ export default function LoginPage() {
               {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
             </button>
           </form>
-
-
         </div>
       </div>
     </div>

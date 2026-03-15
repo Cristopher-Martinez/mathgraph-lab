@@ -1,4 +1,11 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: mathgraph-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
   mathgraph:
     build: .
     image: ghcr.io/cristopher-martinez/mathgraph-lab:latest
@@ -14,6 +21,10 @@ services:
       - DATABASE_URL=file:/data/mathgraph.db
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - AUTH_USERS=${AUTH_USERS}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
 
 volumes:
   mathgraph-data:
+  redis-data:

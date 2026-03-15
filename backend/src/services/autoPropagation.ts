@@ -106,10 +106,10 @@ export async function propagateClassChanges(classId: number) {
   const temas = temasRaw.map(normalizeTopicName);
 
   // Inicializar tracking de estado
-  startGeneration(classId, temas);
+  await startGeneration(classId, temas);
 
   // 1. Resolver topics con deduplicación
-  updateStep(classId, "Creando temas", "running");
+  await updateStep(classId, "Creando temas", "running");
   const topicResults: {
     id: number;
     name: string;
@@ -151,7 +151,7 @@ export async function propagateClassChanges(classId: number) {
   console.log(
     `[AutoPropagation] Temas: ${nuevos.length} nuevos, ${existentes.length} existentes (refuerzo)`,
   );
-  updateStep(
+  await updateStep(
     classId,
     "Creando temas",
     "done",
@@ -199,7 +199,7 @@ export async function propagateClassChanges(classId: number) {
 
     const tipoGeneracion = topicInfo.isNew ? "nuevo" : "refuerzo";
     const stepLabel = `Ejercicios: ${topicInfo.originalName}`;
-    updateStep(classId, stepLabel, "running");
+    await updateStep(classId, stepLabel, "running");
 
     try {
       console.log(
@@ -255,7 +255,7 @@ export async function propagateClassChanges(classId: number) {
         generados: data.length,
         tipo: tipoGeneracion,
       });
-      updateStep(classId, stepLabel, "done", `${data.length} ejercicios`);
+      await updateStep(classId, stepLabel, "done", `${data.length} ejercicios`);
     } catch (err: any) {
       console.error(
         `[AutoPropagation] ✗ Error generando ejercicios para ${topicInfo.name}: ${err.message}`,
@@ -266,7 +266,7 @@ export async function propagateClassChanges(classId: number) {
         tipo: tipoGeneracion,
         error: err.message,
       });
-      updateStep(classId, stepLabel, "error", err.message);
+      await updateStep(classId, stepLabel, "error", err.message);
     }
   }
 
@@ -288,12 +288,45 @@ export async function propagateClassChanges(classId: number) {
   );
 
   // 3. Actualizar DAG
-  updateStep(classId, "Reconstruyendo DAG", "running");
+  await updateStep(classId, "Reconstruyendo DAG", "running");
   await rebuildDAG();
-  updateStep(classId, "Reconstruyendo DAG", "done");
-  updateStep(classId, "Auditando DAG", "done");
+  await updateStep(classId, "Reconstruyendo DAG", "done");
+  await updateStep(classId, "Auditando DAG", "done");
 
-  completeGeneration(classId);
+  // Generar apuntes en background
+  await updateStep(classId, "Generando apuntes", "running");
+  try {
+    const cls = await prisma.classLog.findUnique({
+      where: { id: classId },
+      select: {
+        chunks: { select: { text: true }, orderBy: { index: "asc" } },
+        notes: { select: { id: true } },
+      },
+    });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (cls && cls.chunks.length > 0 && cls.notes.length === 0 && apiKey) {
+      const { generateNotesForClass } = await import("../routes/notes");
+      const apuntes = await generateNotesForClass(classId, cls.chunks, apiKey);
+      if (apuntes.length > 0) {
+        await prisma.classNote.createMany({
+          data: apuntes.map((a: any) => ({
+            classId,
+            titulo: a.titulo,
+            contenido: a.contenido,
+            categoria: a.categoria,
+          })),
+        });
+      }
+      await updateStep(classId, "Generando apuntes", "done", `${apuntes.length} apuntes`);
+    } else {
+      await updateStep(classId, "Generando apuntes", "done", "omitido");
+    }
+  } catch (err: any) {
+    console.error(`[AutoPropagation] Error generando apuntes: ${err.message}`);
+    await updateStep(classId, "Generando apuntes", "error", err.message);
+  }
+
+  await completeGeneration(classId);
   console.log(`[AutoPropagation] Propagación completada para clase ${classId}`);
 }
 
@@ -1016,12 +1049,18 @@ export async function rollbackClass(classId: number) {
     // 4. Eliminar imágenes asociadas a la clase
     await tx.classImage.deleteMany({ where: { classId } });
 
-    // 5. Eliminar la clase
+    // 5. Eliminar chunks de indexación (RAG)
+    await tx.classChunk.deleteMany({ where: { classId } });
+
+    // 6. Eliminar apuntes generados
+    await tx.classNote.deleteMany({ where: { classId } });
+
+    // 7. Eliminar la clase
     await tx.classLog.delete({ where: { id: classId } });
     console.log(`[Rollback] Eliminada clase ${classId}`);
   });
 
-  // 5. Reconstruir DAG después del rollback
+  // 8. Reconstruir DAG después del rollback
   await rebuildDAG();
 
   console.log(`[Rollback] Rollback completado para clase ${classId}`);

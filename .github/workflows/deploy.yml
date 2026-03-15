@@ -56,6 +56,12 @@ jobs:
                       # Create docker-compose.yml
                       cat > docker-compose.yml << 'COMPOSE'
                       services:
+                        redis:
+                          image: redis:7-alpine
+                          container_name: mathgraph-redis
+                          restart: unless-stopped
+                          volumes:
+                            - redis-data:/data
                         mathgraph:
                           image: ghcr.io/cristopher-martinez/mathgraph-lab:latest
                           container_name: mathgraph-lab
@@ -70,12 +76,31 @@ jobs:
                             - DATABASE_URL=file:/data/mathgraph.db
                             - GEMINI_API_KEY=${GEMINI_API_KEY}
                             - AUTH_USERS=${AUTH_USERS}
+                            - REDIS_URL=redis://redis:6379
+                          depends_on:
+                            - redis
                       volumes:
                         mathgraph-data:
+                        redis-data:
                       COMPOSE
 
                       # Deploy
                       docker compose up -d --pull always --remove-orphans
+
+                      # Ensure Nginx supports WebSocket for socket.io
+                      if ! grep -q 'socket.io' /etc/nginx/sites-available/mathgraph 2>/dev/null; then
+                        sed -i '/location \/ {/i \
+                          location /socket.io/ {\
+                              proxy_pass http://localhost:3002;\
+                              proxy_http_version 1.1;\
+                              proxy_set_header Upgrade $http_upgrade;\
+                              proxy_set_header Connection "upgrade";\
+                              proxy_set_header Host $host;\
+                              proxy_set_header X-Real-IP $remote_addr;\
+                              proxy_cache_bypass $http_upgrade;\
+                          }' /etc/nginx/sites-available/mathgraph
+                        nginx -t && systemctl reload nginx
+                      fi
 
                       # Wait and check health
                       sleep 5

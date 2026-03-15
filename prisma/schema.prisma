@@ -72,6 +72,7 @@ model ClassLog {
     createdAt  DateTime     @default(now())
     images     ClassImage[]
     chunks     ClassChunk[]
+    notes      ClassNote[]
 }
 
 model ClassImage {
@@ -98,6 +99,18 @@ model ClassChunk {
     embedding String
     index     Int
     classLog  ClassLog @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+    @@index([classId])
+}
+
+model ClassNote {
+    id        Int      @id @default(autoincrement())
+    classId   Int
+    titulo    String
+    contenido String
+    categoria String
+    classLog  ClassLog @relation(fields: [classId], references: [id], onDelete: Cascade)
+    createdAt DateTime @default(now())
 
     @@index([classId])
 }

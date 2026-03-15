@@ -1,99 +1,119 @@
 /**
- * In-memory tracker for background generation status.
- * Tracks the progress of class propagation (topics, exercises, DAG).
+ * Generation status tracker using Redis + WebSocket.
+ * Persists status in Redis and broadcasts updates via socket.io.
  */
+import {
+  GenerationStatus,
+  GenerationStep,
+  getGenerationStatus as redisGet,
+  setGenerationStatus as redisSet,
+  getAllGenerationStatuses as redisGetAll,
+} from "./redisClient";
+import { broadcastGenerationUpdate } from "./websocket";
 
-export interface GenerationStep {
-  label: string;
-  status: "pending" | "running" | "done" | "error";
-  detail?: string;
+export type { GenerationStatus, GenerationStep };
+
+async function updateAndBroadcast(status: GenerationStatus): Promise<void> {
+  await redisSet(status);
+  broadcastGenerationUpdate(status);
 }
 
-export interface GenerationStatus {
-  classId: number;
-  status: "running" | "done" | "error";
-  steps: GenerationStep[];
-  startedAt: number;
-  completedAt?: number;
-  error?: string;
-}
-
-// Store status for each class (keep last 20)
-const statusMap = new Map<number, GenerationStatus>();
-const MAX_ENTRIES = 20;
-
-function pruneOld() {
-  if (statusMap.size > MAX_ENTRIES) {
-    const oldest = [...statusMap.entries()]
-      .sort((a, b) => a[1].startedAt - b[1].startedAt)
-      .slice(0, statusMap.size - MAX_ENTRIES);
-    for (const [key] of oldest) statusMap.delete(key);
+export async function startGeneration(
+  classId: number,
+  topicNames: string[],
+  type: "class" | "notes" = "class",
+): Promise<void> {
+  const steps: GenerationStep[] = [];
+  if (type === "class") {
+    steps.push({ label: "Creando temas", status: "pending" });
+    for (const name of topicNames) {
+      steps.push({ label: `Ejercicios: ${name}`, status: "pending" });
+    }
+    steps.push({ label: "Reconstruyendo DAG", status: "pending" });
+    steps.push({ label: "Auditando DAG", status: "pending" });
+    steps.push({ label: "Generando apuntes", status: "pending" });
+  } else {
+    steps.push({ label: "Generando apuntes", status: "pending" });
   }
-}
 
-export function startGeneration(classId: number, topicNames: string[]): void {
-  const steps: GenerationStep[] = [
-    { label: "Creando temas", status: "pending" },
-  ];
-  for (const name of topicNames) {
-    steps.push({ label: `Ejercicios: ${name}`, status: "pending" });
-  }
-  steps.push({ label: "Reconstruyendo DAG", status: "pending" });
-  steps.push({ label: "Auditando DAG", status: "pending" });
-
-  statusMap.set(classId, {
+  await updateAndBroadcast({
     classId,
+    type,
     status: "running",
     steps,
     startedAt: Date.now(),
   });
-  pruneOld();
 }
 
-export function updateStep(
+export async function updateStep(
   classId: number,
   label: string,
-  status: GenerationStep["status"],
+  stepStatus: GenerationStep["status"],
   detail?: string,
-): void {
-  const gen = statusMap.get(classId);
+  type: "class" | "notes" = "class",
+): Promise<void> {
+  const gen = await redisGet(classId, type);
   if (!gen) return;
   const step = gen.steps.find((s) => s.label === label);
   if (step) {
-    step.status = status;
+    step.status = stepStatus;
     if (detail) step.detail = detail;
   }
+  await updateAndBroadcast(gen);
 }
 
-export function completeGeneration(classId: number): void {
-  const gen = statusMap.get(classId);
+export async function completeGeneration(
+  classId: number,
+  type: "class" | "notes" = "class",
+): Promise<void> {
+  const gen = await redisGet(classId, type);
   if (!gen) return;
   gen.status = "done";
   gen.completedAt = Date.now();
-  // Mark any remaining pending as done
   for (const step of gen.steps) {
     if (step.status === "pending" || step.status === "running") {
       step.status = "done";
     }
   }
+  await updateAndBroadcast(gen);
 }
 
-export function failGeneration(classId: number, error: string): void {
-  const gen = statusMap.get(classId);
-  if (!gen) return;
+export async function failGeneration(
+  classId: number,
+  error: string,
+  type: "class" | "notes" = "class",
+): Promise<void> {
+  const gen = await redisGet(classId, type);
+  if (!gen) {
+    await updateAndBroadcast({
+      classId,
+      type,
+      status: "error",
+      steps: [],
+      startedAt: Date.now(),
+      completedAt: Date.now(),
+      error,
+    });
+    return;
+  }
   gen.status = "error";
   gen.error = error;
   gen.completedAt = Date.now();
+  await updateAndBroadcast(gen);
 }
 
-export function getGenerationStatus(classId: number): GenerationStatus | null {
-  return statusMap.get(classId) || null;
+export async function getGenerationStatusById(
+  classId: number,
+  type: "class" | "notes" = "class",
+): Promise<GenerationStatus | null> {
+  return redisGet(classId, type);
 }
 
-export function getActiveGenerations(): GenerationStatus[] {
-  return [...statusMap.values()].filter((g) => g.status === "running");
+export async function getActiveGenerations(): Promise<GenerationStatus[]> {
+  const all = await redisGetAll();
+  return all.filter((g) => g.status === "running");
 }
 
-export function getAllRecentStatuses(): GenerationStatus[] {
-  return [...statusMap.values()].sort((a, b) => b.startedAt - a.startedAt);
+export async function getAllRecentStatuses(): Promise<GenerationStatus[]> {
+  return redisGetAll();
 }

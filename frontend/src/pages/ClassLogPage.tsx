@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MarkdownLatex from "../components/MarkdownLatex";
-import { useGeneration } from "../context/GenerationContext";
 import { api } from "../services/api";
 
 interface ClassLogEntry {
@@ -71,7 +70,6 @@ export default function ClassLogPage() {
     texto: string;
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { setGeneratingClassId } = useGeneration();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -225,11 +223,6 @@ export default function ClassLogPage() {
       };
 
       const result = await api.createClassLog(data);
-
-      // Iniciar tracking de generación en background
-      if (result.id) {
-        setGeneratingClassId(result.id);
-      }
 
       // Construir mensaje de éxito con stats
       let textoExito = "¡Clase registrada y analizada correctamente!";

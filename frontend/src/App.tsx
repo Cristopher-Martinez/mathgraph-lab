@@ -8,9 +8,10 @@ import {
 } from "react-router-dom";
 import GenerationStatusPanel from "./components/GenerationStatusPanel";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { GenerationProvider, useGeneration } from "./context/GenerationContext";
+import { GenerationProvider } from "./context/GenerationContext";
 import { useTheme } from "./context/ThemeContext";
 import AITutorPage from "./pages/AITutorPage";
+import ApuntesPage from "./pages/ApuntesPage";
 import ChatPage from "./pages/ChatPage";
 import ClassLogPage from "./pages/ClassLogPage";
 import DAGPage from "./pages/DAGPage";
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/ai-tutor", label: "Tutor IA", icon: "🤖" },
   { to: "/training", label: "Entrenamiento", icon: "🎯" },
   { to: "/chat", label: "Chat Clases", icon: "💬" },
+  { to: "/apuntes", label: "Apuntes", icon: "📋" },
   { to: "/class-log", label: "Registro", icon: "📝" },
 ];
 
@@ -66,7 +68,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { isDark, toggleTheme } = useTheme();
-  const { generatingClassId } = useGeneration();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -273,12 +274,20 @@ function AppContent() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/apuntes"
+                  element={
+                    <ProtectedRoute>
+                      <ApuntesPage />
+                    </ProtectedRoute>
+                  }
+                />
               </Routes>
             </div>
           </main>
 
           {/* Footer de estado de generación */}
-          <GenerationStatusPanel classId={generatingClassId} />
+          <GenerationStatusPanel />
         </div>
       </div>
     </BrowserRouter>
