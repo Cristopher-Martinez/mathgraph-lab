@@ -68,6 +68,7 @@ jest.mock("@google/generative-ai", () => ({
               resumen:
                 "Clase sobre pendiente de una recta y ecuación punto-pendiente.",
               conceptosClave: ["Pendiente", "Ecuación punto-pendiente"],
+              actividades: ["Resolver ejercicios 1-5 del libro"],
             }),
         },
       }),
@@ -104,6 +105,19 @@ describe("Análisis de Transcripción", () => {
 
     expect(resultado.conceptosClave).toBeDefined();
     expect(Array.isArray(resultado.conceptosClave)).toBe(true);
+  });
+
+  it("debe devolver actividades asignadas", async () => {
+    const { analizarTranscripcion } =
+      await import("../backend/src/services/transcriptAnalysis");
+
+    process.env.GEMINI_API_KEY = "test-key";
+    const resultado = await analizarTranscripcion(
+      "Para mañana resuelvan los ejercicios 1-5 del libro.",
+    );
+
+    expect(resultado.actividades).toBeDefined();
+    expect(Array.isArray(resultado.actividades)).toBe(true);
   });
 });
 
@@ -289,6 +303,7 @@ describe("Detección de Temas", () => {
                   tiposEjercicio: ["distancia", "punto_medio"],
                   resumen: "Clase introductoria a geometría analítica.",
                   conceptosClave: ["Plano cartesiano"],
+                  actividades: ["Repasar fórmulas de distancia"],
                 }),
             },
           }),
@@ -476,5 +491,30 @@ describe("Edge Cases - Deduplicación", () => {
     ];
     const unique = new Set(items.map((i) => i.toLowerCase()));
     expect(unique.size).toBeLessThan(items.length);
+  });
+});
+
+describe("ClassLog route — campo activities", () => {
+  it("classlog.ts debe incluir actividades en la respuesta POST", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const content = fs.readFileSync(
+      path.join(__dirname, "../backend/src/routes/classlog.ts"),
+      "utf-8",
+    );
+    expect(content).toContain("actividades: analisisTranscripcion.actividades");
+    expect(content).toContain('activities: JSON.stringify(analisisTranscripcion.actividades)');
+  });
+
+  it("classlog.ts debe incluir actividades en GET list y GET :id", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const content = fs.readFileSync(
+      path.join(__dirname, "../backend/src/routes/classlog.ts"),
+      "utf-8",
+    );
+    const matches = content.match(/safeParseJson\(c\.activities\)|safeParseJson\(clase\.activities\)/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
   });
 });

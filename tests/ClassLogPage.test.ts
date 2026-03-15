@@ -38,3 +38,12 @@ describe("ClassLogPage — contrato API actualizado", () => {
     expect(content).toMatch(/generarMasEjercicios\s*=\s*useCallback/);
   });
 });
+
+describe("ClassLogPage — tabs de detalle", () => {
+  it("debe tener tabs para resumen, fórmulas, ejercicios y transcripción", () => {
+    expect(content).toContain("resumen");
+    expect(content).toContain("formulas");
+    expect(content).toContain("ejercicios");
+    expect(content).toContain("transcripcion");
+  });
+});
