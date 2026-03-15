@@ -58,6 +58,17 @@ const authLimiter = rateLimit({
 app.use("/auth", authLimiter, authRouter);
 app.use("/api/auth", authLimiter, authRouter);
 
+// Health check (public)
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Serve frontend static files in production (BEFORE auth — login page must load)
+if (process.env.NODE_ENV === "production") {
+  const frontendPath = path.join(__dirname, "../../frontend/dist");
+  app.use(express.static(frontendPath));
+}
+
 // Protected routes — require valid session
 app.use(authMiddleware as any);
 app.use("/topics", topicsRouter);
@@ -84,19 +95,9 @@ app.use("/api/tutor", tutorRouter);
 app.use("/api/class-log", classlogRouter);
 app.use("/api/notes", notesRouter);
 
-// Health check
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Serve frontend static files in production (AFTER API routes)
+// SPA catch-all route - MUST be last (after API routes, serves index.html for client routing)
 if (process.env.NODE_ENV === "production") {
   const frontendPath = path.join(__dirname, "../../frontend/dist");
-
-  // Serve static assets (but not catch-all yet)
-  app.use(express.static(frontendPath));
-
-  // SPA catch-all route - MUST be last
   app.get("*", (_req, res) => {
     res.sendFile(path.join(frontendPath, "index.html"));
   });
