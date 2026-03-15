@@ -249,4 +249,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  getTopicDocs: (topicName: string) =>
+    request<{
+      conceptos: string;
+      ejemplos: { titulo: string; problema: string; solucion: string }[];
+      casosDeUso: string[];
+      curiosidades: string[];
+    }>("/ai/topic-docs", {
+      method: "POST",
+      body: JSON.stringify({ topicName }),
+    }),
 };

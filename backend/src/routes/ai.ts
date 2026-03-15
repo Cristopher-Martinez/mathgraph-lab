@@ -162,6 +162,87 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
   }
 });
 
+// Generate topic documentation (concepts, examples, use cases, curiosities)
+router.post("/topic-docs", async (req: Request, res: Response) => {
+  try {
+    const { topicName } = req.body;
+    if (!topicName || typeof topicName !== "string") {
+      res.status(400).json({ error: "topicName is required" });
+      return;
+    }
+
+    const redis = getRedis();
+    const cacheKey = `topicDocs:${topicName.toLowerCase().trim()}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      res.json(JSON.parse(cached));
+      return;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      const fallback = getFallbackDocs(topicName);
+      res.json(fallback);
+      return;
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const prompt = `Eres un profesor de matemáticas experto. Genera documentación educativa completa sobre el tema: "${topicName}".
+
+Responde SOLO en formato JSON válido (sin markdown, sin backticks). La estructura debe ser:
+{
+  "conceptos": "Explicación clara de los conceptos fundamentales del tema. Usa notación matemática cuando sea necesario. Mínimo 3-4 párrafos bien desarrollados.",
+  "ejemplos": [
+    {"titulo": "título corto del ejemplo", "problema": "planteamiento del problema", "solucion": "resolución paso a paso detallada"},
+    {"titulo": "título corto", "problema": "...", "solucion": "..."}
+  ],
+  "casosDeUso": ["aplicación práctica 1 en la vida real", "aplicación práctica 2", "aplicación práctica 3"],
+  "curiosidades": ["dato curioso o histórico 1", "dato curioso 2", "dato curioso 3"]
+}
+
+Reglas:
+- Los conceptos deben ser claros y pedagógicos, apropiados para un estudiante universitario
+- Incluye al menos 3 ejemplos resueltos paso a paso
+- Los casos de uso deben ser aplicaciones reales y relevantes
+- Las curiosidades deben ser datos interesantes, históricos o sorprendentes
+- Usa notación matemática legible (fracciones como a/b, raíces como √, exponentes como x², etc.)
+- Todo en español`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      const docs = {
+        conceptos: parsed.conceptos || "",
+        ejemplos: Array.isArray(parsed.ejemplos) ? parsed.ejemplos : [],
+        casosDeUso: Array.isArray(parsed.casosDeUso) ? parsed.casosDeUso : [],
+        curiosidades: Array.isArray(parsed.curiosidades) ? parsed.curiosidades : [],
+      };
+      // Cache for 7 days
+      await redis.setex(cacheKey, 604800, JSON.stringify(docs));
+      res.json(docs);
+    } else {
+      res.json(getFallbackDocs(topicName));
+    }
+  } catch (err) {
+    console.error("Topic docs generation error:", err);
+    res.json(getFallbackDocs(req.body.topicName || ""));
+  }
+});
+
+function getFallbackDocs(topicName: string) {
+  return {
+    conceptos: `Documentación para "${topicName}" no disponible sin conexión a IA. Consulta tus apuntes de clase o materiales de referencia.`,
+    ejemplos: [],
+    casosDeUso: ["Consulta tus apuntes de clase para ver aplicaciones prácticas."],
+    curiosidades: ["Activa la conexión a la IA para ver curiosidades sobre este tema."],
+  };
+}
+
 function getFallbackExplanation(problem: string): string {
   return `## Tutor IA (modo sin conexión)
 

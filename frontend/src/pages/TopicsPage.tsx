@@ -45,6 +45,11 @@ export default function TopicsPage() {
   const [solverResult, setSolverResult] = useState<any>(null);
   const [score, setScore] = useState(0);
 
+  // Topic documentation state
+  const [topicDocs, setTopicDocs] = useState<any>(null);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsTab, setDocsTab] = useState<"conceptos" | "ejemplos" | "casos" | "curiosidades">("conceptos");
+
   useEffect(() => {
     if (id) {
       api
@@ -54,6 +59,11 @@ export default function TopicsPage() {
           setDetailView("overview");
           setSelectedDifficulty(null);
           setPage(1);
+          // Load topic documentation
+          setDocsLoading(true);
+          setTopicDocs(null);
+          setDocsTab("conceptos");
+          api.getTopicDocs(data.name).then(setTopicDocs).catch(() => {}).finally(() => setDocsLoading(false));
         })
         .catch(() => {});
     } else {
@@ -450,6 +460,103 @@ export default function TopicsPage() {
             </div>
           </div>
         )}
+
+        {/* Documentación del tema */}
+        <div>
+          <h2 className="text-xl font-semibold mb-3 dark:text-gray-100">📚 Documentación</h2>
+
+          {docsLoading ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+              <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-3"></div>
+              <p className="text-gray-500 dark:text-gray-400">Generando documentación con IA...</p>
+            </div>
+          ) : topicDocs ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {/* Tabs */}
+              <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+                {([
+                  { key: "conceptos" as const, label: "📖 Conceptos", },
+                  { key: "ejemplos" as const, label: "✏️ Ejemplos", },
+                  { key: "casos" as const, label: "🌍 Casos de Uso", },
+                  { key: "curiosidades" as const, label: "💡 Curiosidades", },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setDocsTab(tab.key)}
+                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                      docsTab === tab.key
+                        ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20"
+                        : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    }`}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab content */}
+              <div className="p-5">
+                {docsTab === "conceptos" && (
+                  <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <MarkdownLatex content={topicDocs.conceptos} />
+                  </div>
+                )}
+
+                {docsTab === "ejemplos" && (
+                  <div className="space-y-4">
+                    {topicDocs.ejemplos.map((ej: any, i: number) => (
+                      <div key={i} className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 font-medium text-indigo-800 dark:text-indigo-300 text-sm">
+                          Ejemplo {i + 1}: {ej.titulo}
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Problema</span>
+                            <div className="mt-1 text-gray-700 dark:text-gray-300">
+                              <MarkdownLatex content={ej.problema} />
+                            </div>
+                          </div>
+                          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Solución</span>
+                            <div className="mt-1 text-gray-700 dark:text-gray-300">
+                              <MarkdownLatex content={ej.solucion} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {topicDocs.ejemplos.length === 0 && (
+                      <p className="text-gray-400 dark:text-gray-500 text-sm">No hay ejemplos disponibles.</p>
+                    )}
+                  </div>
+                )}
+
+                {docsTab === "casos" && (
+                  <div className="space-y-3">
+                    {topicDocs.casosDeUso.map((caso: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center justify-center text-sm font-bold">
+                          {i + 1}
+                        </span>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-1">{caso}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {docsTab === "curiosidades" && (
+                  <div className="space-y-3">
+                    {topicDocs.curiosidades.map((cur: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                        <span className="text-xl flex-shrink-0">💡</span>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-0.5">{cur}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
 
         {/* Tarjetas de Dificultad */}
         {topicExercises.length > 0 ? (
