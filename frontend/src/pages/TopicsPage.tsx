@@ -48,6 +48,8 @@ export default function TopicsPage() {
   // Exercise tips state
   const [exerciseTips, setExerciseTips] = useState<any>(null);
   const [tipsLoading, setTipsLoading] = useState(false);
+  const [notesPage, setNotesPage] = useState(0);
+  const NOTES_PER_PAGE = 3;
 
   // Topic documentation state
   const [topicDocs, setTopicDocs] = useState<any>(null);
@@ -110,6 +112,7 @@ export default function TopicsPage() {
     if (ex?.id) {
       setTipsLoading(true);
       setExerciseTips(null);
+      setNotesPage(0);
       api.getExerciseTips(ex.id).then(setExerciseTips).catch(() => {}).finally(() => setTipsLoading(false));
     }
   };
@@ -235,9 +238,9 @@ export default function TopicsPage() {
 
         {/* Consejos del ejercicio */}
         {(tipsLoading || exerciseTips) && (
-          <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg" open>
+          <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg">
             <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-cyan-800 dark:text-cyan-200 select-none flex items-center gap-2">
-              <span>💡</span> Consejos para resolver {tipsLoading && <span className="ml-2 text-xs text-cyan-500">(cargando...)</span>}
+              <span>💡</span> Consejos para resolver {exerciseTips && <span className="text-xs text-cyan-500">({exerciseTips.tips.length})</span>} {tipsLoading && <span className="ml-1 text-xs text-cyan-500">cargando...</span>}
             </summary>
             {exerciseTips && (
               <div className="px-4 pb-4 space-y-2 border-t border-cyan-200 dark:border-cyan-800 pt-3">
@@ -258,12 +261,31 @@ export default function TopicsPage() {
                   <details className="mt-2">
                     <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">📚 Notas del profesor ({exerciseTips.classContext.length})</summary>
                     <div className="mt-2 space-y-2">
-                      {exerciseTips.classContext.map((note: any, i: number) => (
+                      {exerciseTips.classContext.slice(notesPage * NOTES_PER_PAGE, (notesPage + 1) * NOTES_PER_PAGE).map((note: any, i: number) => (
                         <div key={i} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
                           <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{note.titulo}</p>
                           <div className="text-xs text-gray-600 dark:text-gray-400 mt-1"><MarkdownLatex content={note.contenido} /></div>
                         </div>
                       ))}
+                      {exerciseTips.classContext.length > NOTES_PER_PAGE && (
+                        <div className="flex items-center justify-between pt-1">
+                          <button
+                            onClick={() => setNotesPage(p => Math.max(0, p - 1))}
+                            disabled={notesPage === 0}
+                            className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
+                            ← Anterior
+                          </button>
+                          <span className="text-xs text-purple-500 dark:text-purple-400">
+                            {notesPage + 1} / {Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE)}
+                          </span>
+                          <button
+                            onClick={() => setNotesPage(p => Math.min(Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1, p + 1))}
+                            disabled={notesPage >= Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1}
+                            className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
+                            Siguiente →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </details>
                 )}
