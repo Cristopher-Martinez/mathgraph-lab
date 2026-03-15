@@ -994,8 +994,24 @@ function DetalleClase({
     exPage * EXERCISES_PER_PAGE,
   );
 
+  const [detailTab, setDetailTab] = useState<
+    "resumen" | "formulas" | "ejercicios" | "transcripcion" | "imagenes"
+  >("resumen");
+
+  // Build available tabs dynamically
+  const tabs: { key: typeof detailTab; label: string }[] = [
+    { key: "resumen", label: "📋 Resumen" },
+  ];
+  if (clase.formulas?.length > 0)
+    tabs.push({ key: "formulas", label: `📐 Fórmulas (${clase.formulas.length})` });
+  tabs.push({ key: "ejercicios", label: `✏️ Ejercicios (${ejercicios.length})` });
+  if (clase.transcript)
+    tabs.push({ key: "transcripcion", label: "📝 Transcripción" });
+  if (clase.imagenes?.length > 0)
+    tabs.push({ key: "imagenes", label: `🖼️ Imágenes (${clase.imagenes.length})` });
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Cabecera */}
       <div className="flex items-center gap-4">
         <button
@@ -1019,230 +1035,244 @@ function DetalleClase({
         </div>
       </div>
 
-      {/* Resumen */}
-      {clase.summary && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            📋 Resumen
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300">{clase.summary}</p>
+      {/* Tab card */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        {/* Tabs */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setDetailTab(tab.key)}
+              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                detailTab === tab.key
+                  ? "text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20"
+                  : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              }`}>
+              {tab.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Temas */}
-      {clase.temas?.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-            📚 Temas Detectados
-          </h2>
-          <div className="flex flex-wrap gap-2">
-            {clase.temas.map((tema: string, i: number) => (
-              <span
-                key={i}
-                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-sm font-medium">
-                {tema}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Fórmulas */}
-      {clase.formulas?.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-            📐 Fórmulas Extraídas
-          </h2>
-          <div className="space-y-2">
-            {clase.formulas.map((formula: string, i: number) => (
-              <div
-                key={i}
-                className="px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg font-mono text-sm text-gray-800 dark:text-gray-200">
-                <MarkdownLatex content={`$${formula}$`} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Imágenes */}
-      {clase.imagenes?.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-            🖼️ Imágenes de la Clase
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {clase.imagenes.map((img: any, i: number) => (
-              <div
-                key={i}
-                className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Imagen {i + 1}
-                </p>
-                {img.caption && (
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    {img.caption}
+        {/* Tab content */}
+        <div className="p-5">
+          {/* Resumen tab */}
+          {detailTab === "resumen" && (
+            <div className="space-y-4">
+              {clase.summary && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Resumen
+                  </h3>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    {clase.summary}
                   </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Ejercicios Generados */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            ✏️ Ejercicios ({ejercicios.length})
-          </h2>
-          <button
-            onClick={onGenerarEjercicios}
-            disabled={generando || cooldown > 0}
-            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {generando
-              ? "⏳ Generando..."
-              : cooldown > 0
-                ? `⏱️ ${cooldown}s`
-                : "Generar Más"}
-          </button>
-        </div>
-
-        {/* Difficulty filter */}
-        {ejercicios.length > 0 && (
-          <div className="flex gap-1.5 mb-3">
-            {([
-              ["all", "Todos"],
-              ["facil", "🟢 Fácil"],
-              ["medio", "🟡 Medio"],
-              ["dificil", "🔴 Difícil"],
-            ] as const).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => { setDiffFilter(key); setExPage(1); }}
-                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
-                  diffFilter === key
-                    ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
-                    : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                }`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {pagedExercicios.length > 0 ? (
-          <div className="space-y-3">
-            {pagedExercicios.map((ej: any, i: number) => (
-              <div
-                key={i}
-                className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        ej.dificultad === "facil" || ej.difficulty === "easy"
-                          ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                          : ej.dificultad === "medio" ||
-                              ej.difficulty === "medium"
-                            ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400"
-                            : "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400"
-                      }`}>
-                      {ej.dificultad || ej.difficulty || "medio"}
-                    </span>
-                    {ej.tipo && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {ej.tipo}
+                </div>
+              )}
+              {clase.temas?.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Temas Detectados
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {clase.temas.map((tema: string, i: number) => (
+                      <span
+                        key={i}
+                        className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-sm font-medium">
+                        {tema}
                       </span>
-                    )}
+                    ))}
                   </div>
+                </div>
+              )}
+              {!clase.summary && (!clase.temas || clase.temas.length === 0) && (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  No hay resumen disponible
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Fórmulas tab */}
+          {detailTab === "formulas" && (
+            <div className="space-y-2">
+              {clase.formulas.map((formula: string, i: number) => (
+                <div
+                  key={i}
+                  className="px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg font-mono text-sm text-gray-800 dark:text-gray-200">
+                  <MarkdownLatex content={`$${formula}$`} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Ejercicios tab */}
+          {detailTab === "ejercicios" && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                {/* Difficulty filter */}
+                <div className="flex gap-1.5">
+                  {([
+                    ["all", "Todos"],
+                    ["facil", "🟢 Fácil"],
+                    ["medio", "🟡 Medio"],
+                    ["dificil", "🔴 Difícil"],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => { setDiffFilter(key); setExPage(1); }}
+                      className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                        diffFilter === key
+                          ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
+                          : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={onGenerarEjercicios}
+                  disabled={generando || cooldown > 0}
+                  className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  {generando
+                    ? "⏳ Generando..."
+                    : cooldown > 0
+                      ? `⏱️ ${cooldown}s`
+                      : "+ Generar"}
+                </button>
+              </div>
+
+              {pagedExercicios.length > 0 ? (
+                <div className="space-y-3">
+                  {pagedExercicios.map((ej: any, i: number) => (
+                    <div
+                      key={ej.id || i}
+                      className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                              ej.dificultad === "facil" || ej.difficulty === "easy"
+                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                                : ej.dificultad === "medio" || ej.difficulty === "medium"
+                                  ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400"
+                                  : "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+                            }`}>
+                            {ej.dificultad || ej.difficulty || "medio"}
+                          </span>
+                          {ej.tipo && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {ej.tipo}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() =>
+                            navigate("/practice", {
+                              state: {
+                                exercise: {
+                                  id: ej.id,
+                                  latex: ej.pregunta || ej.question || ej.latex,
+                                  question: ej.pregunta || ej.question,
+                                  steps: ej.solucion || ej.steps,
+                                  difficulty: ej.dificultad || ej.difficulty || "medium",
+                                  topic: ej.topic || clase.temas?.[0] || "General",
+                                  socratic: ej.socratic,
+                                },
+                                startSocratic: true,
+                              },
+                            })
+                          }
+                          title="Practicar en modo Socrático"
+                          className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition-colors flex items-center gap-1.5 flex-shrink-0">
+                          🧠 Socrático
+                        </button>
+                      </div>
+                      <p className="text-gray-800 dark:text-gray-200 text-sm">
+                        {ej.pregunta || ej.question || ej.latex}
+                      </p>
+                      <details className="mt-2">
+                        <summary className="text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline">
+                          Ver solución
+                        </summary>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 pl-4">
+                          {ej.solucion || ej.steps}
+                        </p>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  {diffFilter !== "all"
+                    ? "No hay ejercicios con esa dificultad"
+                    : "No se han generado ejercicios aún"}
+                </p>
+              )}
+              {/* Exercise pagination */}
+              {totalExPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-3">
                   <button
-                    onClick={() =>
-                      navigate("/practice", {
-                        state: {
-                          exercise: {
-                            id: ej.id,
-                            latex: ej.pregunta || ej.question || ej.latex,
-                            question: ej.pregunta || ej.question,
-                            steps: ej.solucion || ej.steps,
-                            difficulty:
-                              ej.dificultad || ej.difficulty || "medium",
-                            topic: ej.topic || clase.temas?.[0] || "General",
-                            socratic: ej.socratic,
-                          },
-                          startSocratic: true,
-                        },
-                      })
-                    }
-                    title="Practicar en modo Socrático"
-                    className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition-colors flex items-center gap-1.5 flex-shrink-0">
-                    🧠 Socrático
+                    onClick={() => setExPage((p) => Math.max(1, p - 1))}
+                    disabled={exPage === 1}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    ←
+                  </button>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {exPage} / {totalExPages}
+                  </span>
+                  <button
+                    onClick={() => setExPage((p) => Math.min(totalExPages, p + 1))}
+                    disabled={exPage >= totalExPages}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    →
                   </button>
                 </div>
-                <p className="text-gray-800 dark:text-gray-200 text-sm">
-                  {ej.pregunta || ej.question || ej.latex}
-                </p>
-                <details className="mt-2">
-                  <summary className="text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline">
-                    Ver solución
-                  </summary>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 pl-4">
-                    {ej.solucion || ej.steps}
-                  </p>
-                </details>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {diffFilter !== "all"
-              ? "No hay ejercicios con esa dificultad"
-              : "No se han generado ejercicios aún"}
-          </p>
-        )}
-        {/* Exercise pagination */}
-        {totalExPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-3">
-            <button
-              onClick={() => setExPage((p) => Math.max(1, p - 1))}
-              disabled={exPage === 1}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-              ←
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {exPage} / {totalExPages}
-            </span>
-            <button
-              onClick={() => setExPage((p) => Math.min(totalExPages, p + 1))}
-              disabled={exPage >= totalExPages}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-              →
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Transcripción original */}
-      <details className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-        <summary className="text-lg font-semibold text-gray-900 dark:text-white cursor-pointer flex items-center justify-between">
-          <span>📝 Transcripción Original</span>
-          {clase.transcript && (
-            <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">
-              {clase.transcript.split(/\s+/).filter(Boolean).length.toLocaleString()} palabras · {clase.transcript.length.toLocaleString()} caracteres
-            </span>
+              )}
+            </div>
           )}
-        </summary>
-        <div className="mt-3 max-h-[500px] overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">
-          {(clase.transcript || "")
-            .split(/\n\s*\n/)
-            .filter((p: string) => p.trim())
-            .map((paragraph: string, i: number) => (
-              <p key={i} className="whitespace-pre-wrap">
-                {paragraph.trim()}
-              </p>
-            ))}
+
+          {/* Transcripción tab */}
+          {detailTab === "transcripcion" && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  {clase.transcript?.split(/\s+/).filter(Boolean).length.toLocaleString()} palabras · {clase.transcript?.length.toLocaleString()} caracteres
+                </span>
+              </div>
+              <div className="max-h-[500px] overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">
+                {(clase.transcript || "")
+                  .split(/\n\s*\n/)
+                  .filter((p: string) => p.trim())
+                  .map((paragraph: string, i: number) => (
+                    <p key={i} className="whitespace-pre-wrap">
+                      {paragraph.trim()}
+                    </p>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Imágenes tab */}
+          {detailTab === "imagenes" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {clase.imagenes.map((img: any, i: number) => (
+                <div
+                  key={i}
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Imagen {i + 1}
+                  </p>
+                  {img.caption && (
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      {img.caption}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </details>
+      </div>
     </div>
   );
 }
