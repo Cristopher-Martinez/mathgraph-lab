@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
 import {
@@ -99,6 +100,104 @@ router.post("/solve", async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     res.status(422).json({ error: err.message || "Solver error" });
+  }
+});
+
+// Generate a single exercise with AI, different from existing ones
+router.post("/generate-one", async (req: Request, res: Response) => {
+  try {
+    const { topicId, difficulty } = req.body;
+    if (!topicId || !difficulty) {
+      res.status(400).json({ error: "topicId and difficulty are required" });
+      return;
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({ error: "AI no disponible" });
+      return;
+    }
+
+    const topic = await prisma.topic.findUnique({ where: { id: topicId } });
+    if (!topic) {
+      res.status(404).json({ error: "Topic not found" });
+      return;
+    }
+
+    // Get existing exercises to avoid duplicates
+    const existing = await prisma.exercise.findMany({
+      where: { topicId, difficulty },
+      select: { latex: true },
+      take: 20,
+    });
+    const existingList = existing
+      .map((e) => e.latex)
+      .filter(Boolean)
+      .slice(0, 10);
+
+    const diffLabel =
+      difficulty === "easy"
+        ? "fácil"
+        : difficulty === "medium"
+          ? "intermedio"
+          : "difícil";
+
+    const avoidSection =
+      existingList.length > 0
+        ? `\n\nNO repitas estos ejercicios ya existentes:\n${existingList.map((e, i) => `${i + 1}. ${e}`).join("\n")}`
+        : "";
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { temperature: 0.8 },
+    });
+
+    const prompt = `Genera exactamente 1 ejercicio de matemáticas de nivel ${diffLabel} sobre: ${topic.name}.
+
+Responde SOLO con JSON válido (sin markdown, sin backticks):
+{
+  "pregunta": "enunciado claro con datos numéricos concretos",
+  "solucion": "resolución paso a paso",
+  "pistas": ["pista 1", "pista 2"]
+}
+
+El ejercicio debe ser ORIGINAL y DIFERENTE a los existentes.${avoidSection}`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      res.status(500).json({ error: "No se pudo generar el ejercicio" });
+      return;
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (
+      !parsed.pregunta ||
+      typeof parsed.pregunta !== "string" ||
+      parsed.pregunta.trim().length < 5
+    ) {
+      res.status(500).json({ error: "Ejercicio generado inválido" });
+      return;
+    }
+
+    const newExercise = await prisma.exercise.create({
+      data: {
+        topicId,
+        latex: parsed.pregunta,
+        difficulty,
+        steps: parsed.solucion || null,
+        hints: parsed.pistas ? JSON.stringify(parsed.pistas) : null,
+      },
+      include: { topic: true },
+    });
+
+    res.json(newExercise);
+  } catch (err: any) {
+    console.error("Generate one exercise error:", err);
+    res.status(500).json({ error: "Error generando ejercicio" });
   }
 });
 

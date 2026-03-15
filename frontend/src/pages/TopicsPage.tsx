@@ -59,6 +59,7 @@ export default function TopicsPage() {
   >("conceptos");
   const [ejemploIndex, setEjemploIndex] = useState(0);
   const [expandedSections, setExpandedSections] = useState<number | null>(0);
+  const [generatingExercise, setGeneratingExercise] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -495,8 +496,38 @@ export default function TopicsPage() {
               </span>
             </div>
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-            Puntaje: {score}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+              Puntaje: {score}
+            </span>
+            <button
+              onClick={async () => {
+                setGeneratingExercise(true);
+                try {
+                  const newEx = await api.generateOneExercise(
+                    topic.id,
+                    selectedDifficulty!,
+                  );
+                  setTopic((prev: any) => ({
+                    ...prev,
+                    exercises: [...(prev.exercises || []), newEx],
+                  }));
+                } catch {
+                  // silently fail
+                }
+                setGeneratingExercise(false);
+              }}
+              disabled={generatingExercise}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+              {generatingExercise ? (
+                <>
+                  <span className="animate-spin w-3 h-3 border-2 border-indigo-300 border-t-indigo-600 rounded-full" />
+                  Generando...
+                </>
+              ) : (
+                <>✨ Generar ejercicio</>
+              )}
+            </button>
           </div>
         </div>
 

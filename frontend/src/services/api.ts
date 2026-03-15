@@ -61,6 +61,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  generateOneExercise: (topicId: number, difficulty: string) =>
+    request<any>("/exercises/generate-one", {
+      method: "POST",
+      body: JSON.stringify({ topicId, difficulty }),
+    }),
+
   // AI
   explain: (problem: string) =>
     request<{ explanation: string }>("/ai/explain", {
