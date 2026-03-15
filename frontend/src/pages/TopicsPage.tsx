@@ -58,9 +58,7 @@ export default function TopicsPage() {
     "conceptos" | "ejemplos" | "casos" | "curiosidades"
   >("conceptos");
   const [ejemploIndex, setEjemploIndex] = useState(0);
-  const [expandedSections, setExpandedSections] = useState<Set<number>>(
-    new Set([0]),
-  );
+  const [expandedSections, setExpandedSections] = useState<number | null>(0);
 
   useEffect(() => {
     if (id) {
@@ -678,12 +676,9 @@ export default function TopicsPage() {
                     .filter((s: string) => s.length > 0);
 
                   const toggleSection = (idx: number) => {
-                    setExpandedSections((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(idx)) next.delete(idx);
-                      else next.add(idx);
-                      return next;
-                    });
+                    setExpandedSections((prev) =>
+                      prev === idx ? null : idx,
+                    );
                   };
 
                   if (sections.length <= 1) {
@@ -696,21 +691,8 @@ export default function TopicsPage() {
 
                   return (
                     <div className="space-y-2">
-                      <div className="flex gap-2 mb-3">
-                        <button
-                          onClick={() => setExpandedSections(new Set(sections.map((_: string, i: number) => i)))}
-                          className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline">
-                          Expandir todo
-                        </button>
-                        <span className="text-gray-300 dark:text-gray-600">|</span>
-                        <button
-                          onClick={() => setExpandedSections(new Set())}
-                          className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline">
-                          Colapsar todo
-                        </button>
-                      </div>
                       {sections.map((section: string, idx: number) => {
-                        const isExpanded = expandedSections.has(idx);
+                        const isExpanded = expandedSections === idx;
                         const headingMatch = section.match(/^(#{1,3})\s+(.+)/);
                         const title = headingMatch
                           ? headingMatch[2]
@@ -763,34 +745,34 @@ export default function TopicsPage() {
                   return (
                     <div>
                       {/* Carousel controls */}
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center justify-between mb-3">
                         <button
                           onClick={() => setEjemploIndex((i) => Math.max(0, i - 1))}
                           disabled={safeIndex === 0}
-                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                          className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
                           ←
                         </button>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {ejemplos.map((_: any, i: number) => (
                             <button
                               key={i}
                               onClick={() => setEjemploIndex(i)}
                               aria-label={`Ejemplo ${i + 1}`}
-                              className={`w-2.5 h-2.5 rounded-full transition-all ${
+                              className={`w-2 h-2 rounded-full transition-all ${
                                 i === safeIndex
                                   ? "bg-indigo-500 scale-125"
                                   : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400"
                               }`}
                             />
                           ))}
-                          <span className="ml-2 text-xs text-gray-400">
+                          <span className="ml-1.5 text-xs text-gray-400">
                             {safeIndex + 1}/{ejemplos.length}
                           </span>
                         </div>
                         <button
                           onClick={() => setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1))}
                           disabled={safeIndex === ejemplos.length - 1}
-                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                          className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
                           →
                         </button>
                       </div>
@@ -803,37 +785,37 @@ export default function TopicsPage() {
                           if (e.key === "ArrowLeft") setEjemploIndex((i) => Math.max(0, i - 1));
                           if (e.key === "ArrowRight") setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1));
                         }}>
-                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-5 py-3 flex items-center gap-2">
-                          <span className="bg-indigo-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 flex items-center gap-2">
+                          <span className="bg-indigo-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                             {safeIndex + 1}
                           </span>
-                          <span className="font-semibold text-indigo-800 dark:text-indigo-300">
+                          <span className="font-medium text-sm text-indigo-800 dark:text-indigo-300">
                             {ej.titulo}
                           </span>
                         </div>
-                        <div className="p-5 space-y-4">
+                        <div className="p-4 space-y-3">
                           <div>
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-wider">
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
                               Problema
                             </span>
-                            <div className="mt-2 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                            <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700">
                               <MarkdownLatex content={ej.problema} />
                             </div>
                           </div>
-                          <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-wider">
-                              Solución
-                            </span>
-                            <div className="mt-2 text-gray-700 dark:text-gray-300">
+                          <details className="group">
+                            <summary className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-400 cursor-pointer hover:underline select-none">
+                              Ver solución
+                            </summary>
+                            <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 border-t border-gray-100 dark:border-gray-700 pt-2">
                               <MarkdownLatex content={ej.solucion} />
                             </div>
-                          </div>
+                          </details>
                         </div>
                       </div>
 
                       {/* Keyboard hint */}
-                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-3">
-                        Usa ← → para navegar entre ejemplos
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-2">
+                        ← → para navegar
                       </p>
                     </div>
                   );
