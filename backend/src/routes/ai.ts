@@ -241,8 +241,15 @@ Reglas:
 
       // Save to DB for permanent reuse
       if (topic) {
-        await prisma.topicDoc.create({
-          data: {
+        await prisma.topicDoc.upsert({
+          where: { topicId: topic.id },
+          update: {
+            conceptos: docs.conceptos,
+            ejemplos: JSON.stringify(docs.ejemplos),
+            casosDeUso: JSON.stringify(docs.casosDeUso),
+            curiosidades: JSON.stringify(docs.curiosidades),
+          },
+          create: {
             topicId: topic.id,
             conceptos: docs.conceptos,
             ejemplos: JSON.stringify(docs.ejemplos),

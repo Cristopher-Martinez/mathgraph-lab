@@ -1,8 +1,16 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { createLogger, defineConfig } from "vite";
+
+const logger = createLogger();
+const originalError = logger.error;
+logger.error = (msg, options) => {
+  if (msg.includes("ws proxy error") || msg.includes("ws proxy socket error")) return;
+  originalError(msg, options);
+};
 
 export default defineConfig({
   plugins: [react()],
+  customLogger: logger,
   server: {
     port: 5174,
     proxy: {
