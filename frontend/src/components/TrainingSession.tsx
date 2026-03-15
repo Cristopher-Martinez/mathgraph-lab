@@ -100,6 +100,12 @@ export default function TrainingSession({
             setTimeout(() => setLoadingBatch(false), 2000);
             return;
           }
+          if (data.skipped) {
+            // Topic was deleted, try next batch immediately
+            console.warn("Topic deleted, fetching next batch");
+            setTimeout(() => setLoadingBatch(false), 500);
+            return;
+          }
           if (data.exercises?.length > 0) {
             setSession((prev: any) => ({
               ...prev,

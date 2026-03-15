@@ -541,6 +541,19 @@ router.post("/next-batch", async (req: Request, res: Response) => {
       // Cycle through topics
       const nextTopicIndex = (session.batchesFetched || 0) % topics.length;
       const topic = topics[nextTopicIndex];
+
+      // Verify topic still exists in DB (may have been deleted via class rollback)
+      const topicExists = await prisma.topic.findUnique({ where: { id: topic.id } });
+      if (!topicExists) {
+        console.warn(`[Training] Topic ${topic.id} no longer exists, skipping batch`);
+        session.batchesFetched = (session.batchesFetched || 0) + 1;
+        session.batchGenerating = false;
+        session.lastSavedAt = Date.now();
+        await redis.setex(`training:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+        res.json({ exercises: [], skipped: true, reason: "topic_deleted" });
+        return;
+      }
+
       const difficulty = resolveDifficulty(config.difficultyMode, session);
 
       // 1. Try DB first (unused exercises)
