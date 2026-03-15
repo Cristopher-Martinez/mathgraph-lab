@@ -172,11 +172,20 @@ router.post("/topic-docs", async (req: Request, res: Response) => {
       return;
     }
 
-    const redis = getRedis();
-    const cacheKey = `topicDocs:${topicName.toLowerCase().trim()}`;
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      res.json(JSON.parse(cached));
+    // 1. Check DB (permanent storage)
+    const topic = await prisma.topic.findUnique({
+      where: { name: topicName.trim() },
+      include: { doc: true },
+    });
+
+    if (topic?.doc) {
+      const docs = {
+        conceptos: topic.doc.conceptos,
+        ejemplos: JSON.parse(topic.doc.ejemplos),
+        casosDeUso: JSON.parse(topic.doc.casosDeUso),
+        curiosidades: JSON.parse(topic.doc.curiosidades),
+      };
+      res.json(docs);
       return;
     }
 
@@ -223,8 +232,20 @@ Reglas:
         casosDeUso: Array.isArray(parsed.casosDeUso) ? parsed.casosDeUso : [],
         curiosidades: Array.isArray(parsed.curiosidades) ? parsed.curiosidades : [],
       };
-      // Cache for 7 days
-      await redis.setex(cacheKey, 604800, JSON.stringify(docs));
+
+      // Save to DB for permanent reuse
+      if (topic) {
+        await prisma.topicDoc.create({
+          data: {
+            topicId: topic.id,
+            conceptos: docs.conceptos,
+            ejemplos: JSON.stringify(docs.ejemplos),
+            casosDeUso: JSON.stringify(docs.casosDeUso),
+            curiosidades: JSON.stringify(docs.curiosidades),
+          },
+        });
+      }
+
       res.json(docs);
     } else {
       res.json(getFallbackDocs(topicName));
@@ -244,8 +265,23 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
       return;
     }
 
+    const parsedId = parseInt(exerciseId, 10);
+
+    // 1. Check DB (permanent storage)
+    const existingTip = await prisma.exerciseTip.findUnique({
+      where: { exerciseId: parsedId },
+    });
+
+    if (existingTip) {
+      res.json({
+        tips: JSON.parse(existingTip.tips),
+        classContext: JSON.parse(existingTip.classContext),
+      });
+      return;
+    }
+
     const exercise = await prisma.exercise.findUnique({
-      where: { id: parseInt(exerciseId, 10) },
+      where: { id: parsedId },
       include: { topic: true },
     });
 
@@ -254,25 +290,17 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
       return;
     }
 
-    const redis = getRedis();
-    const tipsCacheKey = `exerciseTips:${exercise.id}`;
-    const cached = await redis.get(tipsCacheKey);
-    if (cached) {
-      res.json(JSON.parse(cached));
-      return;
-    }
-
     const exerciseText = exercise.latex || "";
     const topicName = exercise.topic?.name || "";
     const searchQuery = `${topicName} ${exerciseText}`;
 
-    // 1. Search RAG for relevant class fragments
+    // 2. Search RAG for relevant class fragments
     let ragContext: { text: string; classId: number; score: number }[] = [];
     try {
       ragContext = await searchChunks(searchQuery, { topK: 5, minScore: 0.25 });
     } catch { /* RAG may not be available */ }
 
-    // 2. Search ClassNotes for tips/observations related to this topic's class
+    // 3. Search ClassNotes for tips/observations related to this topic's class
     let classNotes: { titulo: string; contenido: string; categoria: string }[] = [];
     if (exercise.generatedByClassId) {
       classNotes = await prisma.classNote.findMany({
@@ -284,11 +312,13 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
       });
     }
 
-    // 3. Parse static hints from exercise
+    // 4. Parse static hints from exercise
     let staticHints: string[] = [];
     if (exercise.hints) {
       try { staticHints = JSON.parse(exercise.hints); } catch { /* ignore */ }
     }
+
+    const classContext = classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria }));
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -296,7 +326,7 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
         tips: staticHints.length > 0
           ? staticHints.map(h => ({ text: h, source: "ejercicio" as const }))
           : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" as const }],
-        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+        classContext,
       };
       res.json(result);
       return;
@@ -345,10 +375,18 @@ Reglas:
         tips: tips.length > 0 ? tips : (staticHints.length > 0
           ? staticHints.map((h: string) => ({ text: h, source: "ejercicio" }))
           : [{ text: "Identifica los datos del problema y aplica la fórmula adecuada.", source: "general" }]),
-        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+        classContext,
       };
 
-      await redis.setex(tipsCacheKey, 86400, JSON.stringify(response));
+      // Save to DB for permanent reuse
+      await prisma.exerciseTip.create({
+        data: {
+          exerciseId: exercise.id,
+          tips: JSON.stringify(response.tips),
+          classContext: JSON.stringify(response.classContext),
+        },
+      });
+
       res.json(response);
     } catch (err) {
       console.error("Gemini exercise-tips error:", err);
@@ -356,7 +394,7 @@ Reglas:
         tips: staticHints.length > 0
           ? staticHints.map(h => ({ text: h, source: "ejercicio" }))
           : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" }],
-        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+        classContext,
       });
     }
   } catch (err) {

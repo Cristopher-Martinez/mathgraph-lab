@@ -22,6 +22,7 @@ model Topic {
     exercises        Exercise[]
     formulas         Formula[]
     progress         Progress[]
+    doc              TopicDoc?
 }
 
 model Formula {
@@ -33,16 +34,17 @@ model Formula {
 }
 
 model Exercise {
-    id                 Int      @id @default(autoincrement())
+    id                 Int          @id @default(autoincrement())
     topicId            Int
     latex              String
     difficulty         String
     generatedByClassId Int?
-    topic              Topic    @relation(fields: [topicId], references: [id])
-    createdAt          DateTime @default(now())
+    topic              Topic        @relation(fields: [topicId], references: [id])
+    createdAt          DateTime     @default(now())
     hints              String?
     steps              String?
     socratic           String?
+    tip                ExerciseTip?
 }
 
 model Progress {
@@ -113,4 +115,24 @@ model ClassNote {
     createdAt DateTime @default(now())
 
     @@index([classId])
+}
+
+model TopicDoc {
+    id           Int      @id @default(autoincrement())
+    topicId      Int      @unique
+    conceptos    String
+    ejemplos     String // JSON array
+    casosDeUso   String // JSON array
+    curiosidades String // JSON array
+    createdAt    DateTime @default(now())
+    topic        Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+}
+
+model ExerciseTip {
+    id           Int      @id @default(autoincrement())
+    exerciseId   Int      @unique
+    tips         String // JSON array
+    classContext  String // JSON array
+    createdAt    DateTime @default(now())
+    exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }
