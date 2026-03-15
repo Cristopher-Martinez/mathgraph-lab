@@ -13,6 +13,13 @@ interface RAGStats {
   totalClasses: number;
 }
 
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("auth_token");
+  const h: Record<string, string> = {};
+  if (token) h.Authorization = `Bearer ${token}`;
+  return h;
+}
+
 export default function ClassChatPanel({
   classId,
   dateFrom,
@@ -36,7 +43,7 @@ export default function ClassChatPanel({
 
   // Cargar stats al montar
   useEffect(() => {
-    fetch("/chat/stats")
+    fetch("/chat/stats", { headers: authHeaders() })
       .then((r) => r.json())
       .then(setStats)
       .catch(() => {});
@@ -45,11 +52,11 @@ export default function ClassChatPanel({
   const handleIndexAll = async () => {
     setIndexing(true);
     try {
-      const res = await fetch("/chat/index-all", { method: "POST" });
+      const res = await fetch("/chat/index-all", { method: "POST", headers: authHeaders() });
       const data = await res.json();
       if (data.success) {
         // Actualizar stats
-        const statsRes = await fetch("/chat/stats");
+        const statsRes = await fetch("/chat/stats", { headers: authHeaders() });
         setStats(await statsRes.json());
       }
     } catch {
@@ -76,7 +83,7 @@ export default function ClassChatPanel({
 
       const response = await fetch("/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           question,
           classId: classId || undefined,
