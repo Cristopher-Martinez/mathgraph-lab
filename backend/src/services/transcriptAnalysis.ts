@@ -34,6 +34,7 @@ Extrae lo siguiente:
 IMPORTANTE:
 - La transcripción puede ser de voz-a-texto, con errores gramaticales, repeticiones o fragmentos incompletos. Interpreta el contenido de forma flexible.
 - Si se adjuntan imágenes, son fotos del pizarrón, cuaderno o material de la misma clase. Úsalas como CONTEXTO ADICIONAL de la transcripción: las fórmulas, diagramas y anotaciones en las imágenes complementan lo que el profesor explica verbalmente. Integra su contenido en tu análisis.
+- SOLO incluye temas ACADÉMICOS/MATEMÁTICOS relevantes a la materia. NO incluyas temas administrativos, organizacionales o de logística de la clase como: reglas del curso, uso de celulares, políticas de asistencia, sistema de evaluación, presentación del profesor, introducción al curso, materiales necesarios, horarios, etc. Solo extrae contenido matemático que pueda generar ejercicios.
 
 Responde SOLO con JSON válido en este formato exacto:
 {
@@ -56,6 +57,7 @@ Extrae lo siguiente de ESTE fragmento solamente:
 IMPORTANTE:
 - La transcripción puede ser de voz-a-texto, con errores gramaticales, repeticiones o fragmentos incompletos. Interpreta el contenido de forma flexible.
 - Si se adjuntan imágenes, son fotos del pizarrón/cuaderno de la misma clase. Úsalas como contexto visual que complementa la transcripción.
+- SOLO incluye temas ACADÉMICOS/MATEMÁTICOS. NO incluyas temas administrativos o de logística (reglas, asistencia, celulares, evaluación, introducción al curso, etc.).
 
 Responde SOLO con JSON válido:
 {
@@ -74,7 +76,7 @@ Análisis parciales:
 {analyses}
 
 Genera UN resultado unificado con:
-- Temas (sin duplicados, normalizados)
+- Temas (sin duplicados, normalizados). EXCLUYE temas administrativos/organizacionales (reglas, asistencia, celulares, introducción al curso, evaluación). Solo temas matemáticos/académicos.
 - Fórmulas (sin duplicados)
 - Tipos de ejercicio (sin duplicados)
 - UN resumen general de toda la clase (2-3 oraciones)

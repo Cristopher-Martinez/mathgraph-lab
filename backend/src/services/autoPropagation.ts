@@ -103,7 +103,42 @@ export async function propagateClassChanges(classId: number) {
     return;
   }
 
-  const temas = temasRaw.map(normalizeTopicName);
+  const temasNormalizados = temasRaw.map(normalizeTopicName);
+
+  // Filtrar temas no académicos (administrativos, logísticos, organizacionales)
+  const NON_ACADEMIC_PATTERNS = [
+    /introducci[oó]n al curso/,
+    /reglas del curso/,
+    /uso de celular/,
+    /calculadora/,
+    /asistencia/,
+    /pol[ií]tica/,
+    /evaluaci[oó]n del curso/,
+    /sistema de (evaluaci[oó]n|calificaci[oó]n)/,
+    /presentaci[oó]n del (profesor|curso|materia)/,
+    /materiales? necesarios?/,
+    /horarios?( de clase)?$/,
+    /programa del curso/,
+    /bibliograf[ií]a/,
+    /criterios de evaluaci[oó]n/,
+  ];
+
+  const temas = temasNormalizados.filter((tema) => {
+    const isNonAcademic = NON_ACADEMIC_PATTERNS.some((pat) => pat.test(tema));
+    if (isNonAcademic) {
+      console.log(
+        `[AutoPropagation] Tema filtrado (no académico): "${tema}"`,
+      );
+    }
+    return !isNonAcademic;
+  });
+
+  if (temas.length === 0) {
+    console.log(
+      `[AutoPropagation] Todos los temas fueron filtrados como no académicos para clase ${classId}`,
+    );
+    return;
+  }
 
   // Inicializar tracking de estado
   await startGeneration(classId, temas);
