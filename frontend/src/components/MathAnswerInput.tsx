@@ -145,7 +145,7 @@ export default function MathAnswerInput({
           type="button"
           onClick={() => setShowSymbols(!showSymbols)}
           disabled={disabled}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-gray-500 hover:text-indigo-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-gray-700 transition-colors disabled:opacity-30"
+          className="absolute right-2 inset-y-2 px-2 flex items-center justify-center rounded-md text-gray-500 hover:text-indigo-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-gray-700 transition-colors disabled:opacity-30"
           title="Insertar símbolo matemático">
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 7h6M4 17h6M14 4l-4 16M14 12h6" />
