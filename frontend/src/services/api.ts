@@ -126,7 +126,9 @@ export const api = {
 
   tutorAnswerStream: (exerciseId: number, step: number, answer: string) => {
     const token = localStorage.getItem("auth_token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
     if (token) headers.Authorization = `Bearer ${token}`;
     return fetch(`${BASE_URL}/tutor/answer-stream`, {
       method: "POST",

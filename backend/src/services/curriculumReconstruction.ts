@@ -41,7 +41,9 @@ export async function reconstruirCurriculo(): Promise<CurriculumResult> {
   }));
 
   // Check cache
-  const cInput = clasesConTemas.map((c) => `${c.id}:${c.fecha}:${c.temas.join(",")}`).join("|");
+  const cInput = clasesConTemas
+    .map((c) => `${c.id}:${c.fecha}:${c.temas.join(",")}`)
+    .join("|");
   const key = cacheKey("curriculum", cInput);
   const cached = await getCached<CurriculumResult>(key);
   if (cached) return cached;

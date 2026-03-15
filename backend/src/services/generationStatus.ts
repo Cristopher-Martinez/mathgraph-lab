@@ -6,8 +6,8 @@ import {
   GenerationStatus,
   GenerationStep,
   getGenerationStatus as redisGet,
-  setGenerationStatus as redisSet,
   getAllGenerationStatuses as redisGetAll,
+  setGenerationStatus as redisSet,
 } from "./redisClient";
 import { broadcastGenerationUpdate } from "./websocket";
 

@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import path from "path";
 import RedisStore from "rate-limit-redis";
+import { authMiddleware } from "./middleware/auth";
 import aiRouter from "./routes/ai";
 import authRouter from "./routes/auth";
 import chatRouter from "./routes/chat";
@@ -16,10 +17,9 @@ import progressRouter from "./routes/progress";
 import topicsRouter from "./routes/topics";
 import trainingRouter from "./routes/training";
 import tutorRouter from "./routes/tutor";
+import "./services/jobQueue"; // Start BullMQ worker
 import { getRedis } from "./services/redisClient";
 import { initWebSocket } from "./services/websocket";
-import "./services/jobQueue"; // Start BullMQ worker
-import { authMiddleware } from "./middleware/auth";
 
 const app = express();
 const server = createServer(app);

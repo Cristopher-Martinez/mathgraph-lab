@@ -134,7 +134,11 @@ export default function PracticePage() {
       setTipsLoading(true);
       setExerciseTips(null);
       setNotesPage(0);
-      api.getExerciseTips(ex.id).then(setExerciseTips).catch(() => {}).finally(() => setTipsLoading(false));
+      api
+        .getExerciseTips(ex.id)
+        .then(setExerciseTips)
+        .catch(() => {})
+        .finally(() => setTipsLoading(false));
     }
   };
 
@@ -620,47 +624,99 @@ export default function PracticePage() {
         {(tipsLoading || exerciseTips) && (
           <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg">
             <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-cyan-800 dark:text-cyan-200 select-none flex items-center gap-2">
-              <span>💡</span> Consejos para resolver {exerciseTips && <span className="text-xs text-cyan-500">({exerciseTips.tips.length})</span>} {tipsLoading && <span className="ml-1 text-xs text-cyan-500">cargando...</span>}
+              <span>💡</span> Consejos para resolver{" "}
+              {exerciseTips && (
+                <span className="text-xs text-cyan-500">
+                  ({exerciseTips.tips.length})
+                </span>
+              )}{" "}
+              {tipsLoading && (
+                <span className="ml-1 text-xs text-cyan-500">cargando...</span>
+              )}
             </summary>
             {exerciseTips && (
               <div className="px-4 pb-4 space-y-2 border-t border-cyan-200 dark:border-cyan-800 pt-3">
                 {exerciseTips.tips.map((tip: any, i: number) => (
                   <div key={i} className="flex items-start gap-2">
-                    <span className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                      tip.source === "clase" ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200" : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
-                    }`}>{i + 1}</span>
+                    <span
+                      className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                        tip.source === "clase"
+                          ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200"
+                          : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
+                      }`}>
+                      {i + 1}
+                    </span>
                     <div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">{tip.text}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {tip.text}
+                      </p>
                       {tip.source === "clase" && (
-                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">📝 Basado en tus clases</span>
+                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                          📝 Basado en tus clases
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
                 {exerciseTips.classContext.length > 0 && (
                   <details className="mt-2">
-                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">📚 Notas del profesor ({exerciseTips.classContext.length})</summary>
+                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">
+                      📚 Notas del profesor ({exerciseTips.classContext.length})
+                    </summary>
                     <div className="mt-2 space-y-2">
-                      {exerciseTips.classContext.slice(notesPage * NOTES_PER_PAGE, (notesPage + 1) * NOTES_PER_PAGE).map((note: any, i: number) => (
-                        <div key={i} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                          <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{note.titulo}</p>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1"><MarkdownLatex content={note.contenido} /></div>
-                        </div>
-                      ))}
+                      {exerciseTips.classContext
+                        .slice(
+                          notesPage * NOTES_PER_PAGE,
+                          (notesPage + 1) * NOTES_PER_PAGE,
+                        )
+                        .map((note: any, i: number) => (
+                          <div
+                            key={i}
+                            className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                              {note.titulo}
+                            </p>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              <MarkdownLatex content={note.contenido} />
+                            </div>
+                          </div>
+                        ))}
                       {exerciseTips.classContext.length > NOTES_PER_PAGE && (
                         <div className="flex items-center justify-between pt-1">
                           <button
-                            onClick={() => setNotesPage(p => Math.max(0, p - 1))}
+                            onClick={() =>
+                              setNotesPage((p) => Math.max(0, p - 1))
+                            }
                             disabled={notesPage === 0}
                             className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
                             ← Anterior
                           </button>
                           <span className="text-xs text-purple-500 dark:text-purple-400">
-                            {notesPage + 1} / {Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE)}
+                            {notesPage + 1} /{" "}
+                            {Math.ceil(
+                              exerciseTips.classContext.length / NOTES_PER_PAGE,
+                            )}
                           </span>
                           <button
-                            onClick={() => setNotesPage(p => Math.min(Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1, p + 1))}
-                            disabled={notesPage >= Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1}
+                            onClick={() =>
+                              setNotesPage((p) =>
+                                Math.min(
+                                  Math.ceil(
+                                    exerciseTips.classContext.length /
+                                      NOTES_PER_PAGE,
+                                  ) - 1,
+                                  p + 1,
+                                ),
+                              )
+                            }
+                            disabled={
+                              notesPage >=
+                              Math.ceil(
+                                exerciseTips.classContext.length /
+                                  NOTES_PER_PAGE,
+                              ) -
+                                1
+                            }
                             className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
                             Siguiente →
                           </button>

@@ -40,9 +40,9 @@ function statusKey(type: string, classId: number) {
 }
 
 export function GenerationProvider({ children }: { children: ReactNode }) {
-  const [generations, setGenerations] = useState<
-    Map<string, GenerationStatus>
-  >(new Map());
+  const [generations, setGenerations] = useState<Map<string, GenerationStatus>>(
+    new Map(),
+  );
   const socketRef = useRef<Socket | null>(null);
 
   const upsert = useCallback((status: GenerationStatus) => {
@@ -54,7 +54,10 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const socket = io("/", { path: "/socket.io", transports: ["websocket", "polling"] });
+    const socket = io("/", {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+    });
     socketRef.current = socket;
 
     socket.on("generation:active", (list: GenerationStatus[]) => {

@@ -1,0 +1,108 @@
+{"t":"2026-02-26T22:07:11.314Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":null,"durationHuman":null}
+{"t":"2026-02-26T22:07:11.324Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T22:07:18.428Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":7104,"durationHuman":"7s"}
+{"t":"2026-02-26T22:07:18.448Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T22:28:45.517Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":1287069,"durationHuman":"21m 27s"}
+{"t":"2026-02-26T22:28:45.546Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T22:36:07.310Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":441764,"durationHuman":"7m 21s"}
+{"t":"2026-02-26T22:36:07.329Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T22:55:42.345Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":1175016,"durationHuman":"19m 35s"}
+{"t":"2026-02-26T22:55:42.354Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T22:59:24.596Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":222242,"durationHuman":"3m 42s"}
+{"t":"2026-02-26T22:59:24.612Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:00:04.552Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":39940,"durationHuman":"39s"}
+{"t":"2026-02-26T23:00:04.569Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:07:37.431Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":452862,"durationHuman":"7m 32s"}
+{"t":"2026-02-26T23:07:37.491Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:10:29.540Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":172049,"durationHuman":"2m 52s"}
+{"t":"2026-02-26T23:10:29.634Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:18:05.177Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:18:05.189Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":12,"durationHuman":"0s"}
+{"t":"2026-02-26T23:18:14.560Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":9383,"durationHuman":"9s"}
+{"t":"2026-02-26T23:18:14.572Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:18:24.089Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:18:24.118Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":29,"durationHuman":"0s"}
+{"t":"2026-02-26T23:19:24.403Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":60314,"durationHuman":"1m 0s"}
+{"t":"2026-02-26T23:19:24.432Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:19:27.713Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3281,"durationHuman":"3s"}
+{"t":"2026-02-26T23:19:27.759Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:33:45.234Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":857475,"durationHuman":"14m 17s"}
+{"t":"2026-02-26T23:33:45.245Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:33:48.421Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3176,"durationHuman":"3s"}
+{"t":"2026-02-26T23:33:48.439Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:42:52.608Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":544169,"durationHuman":"9m 4s"}
+{"t":"2026-02-26T23:42:52.626Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:42:55.714Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3088,"durationHuman":"3s"}
+{"t":"2026-02-26T23:42:55.743Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:45:55.998Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":180255,"durationHuman":"3m 0s"}
+{"t":"2026-02-26T23:45:56.013Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-26T23:45:59.027Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3014,"durationHuman":"3s"}
+{"t":"2026-02-26T23:45:59.044Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:04:18.337Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":1099293,"durationHuman":"18m 19s"}
+{"t":"2026-02-27T00:04:18.371Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:04:21.995Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3624,"durationHuman":"3s"}
+{"t":"2026-02-27T00:04:22.005Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:24:02.746Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:24:02.755Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":9,"durationHuman":"0s"}
+{"t":"2026-02-27T00:25:46.032Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":103286,"durationHuman":"1m 43s"}
+{"t":"2026-02-27T00:25:46.057Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:25:49.251Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3194,"durationHuman":"3s"}
+{"t":"2026-02-27T00:25:49.285Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:32:45.776Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":416491,"durationHuman":"6m 56s"}
+{"t":"2026-02-27T00:32:45.794Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:32:48.913Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3119,"durationHuman":"3s"}
+{"t":"2026-02-27T00:32:48.952Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:34:40.336Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":111384,"durationHuman":"1m 51s"}
+{"t":"2026-02-27T00:34:40.373Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:34:43.460Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3087,"durationHuman":"3s"}
+{"t":"2026-02-27T00:34:43.486Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:38:43.946Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":240460,"durationHuman":"4m 0s"}
+{"t":"2026-02-27T00:38:43.985Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:38:47.158Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3173,"durationHuman":"3s"}
+{"t":"2026-02-27T00:38:47.178Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:46:51.653Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":484475,"durationHuman":"8m 4s"}
+{"t":"2026-02-27T00:46:51.682Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:46:54.901Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":3219,"durationHuman":"3s"}
+{"t":"2026-02-27T00:46:54.924Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:47:57.359Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":62435,"durationHuman":"1m 2s"}
+{"t":"2026-02-27T00:47:57.435Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T00:54:17.923Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":380488,"durationHuman":"6m 20s"}
+{"t":"2026-02-27T00:54:17.941Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:04:18.582Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:04:18.580Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":600639,"durationHuman":"10m 0s"}
+{"t":"2026-02-27T01:10:33.199Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":374617,"durationHuman":"6m 14s"}
+{"t":"2026-02-27T01:10:33.241Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:10:44.490Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":11249,"durationHuman":"11s"}
+{"t":"2026-02-27T01:10:44.510Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:16:35.869Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":351359,"durationHuman":"5m 51s"}
+{"t":"2026-02-27T01:16:35.878Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:19:25.109Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":169231,"durationHuman":"2m 49s"}
+{"t":"2026-02-27T01:19:25.163Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:23:04.473Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":219310,"durationHuman":"3m 39s"}
+{"t":"2026-02-27T01:23:04.517Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:23:58.048Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":53531,"durationHuman":"53s"}
+{"t":"2026-02-27T01:23:58.064Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:27:36.543Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":218479,"durationHuman":"3m 38s"}
+{"t":"2026-02-27T01:27:36.573Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:27:55.004Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":18431,"durationHuman":"18s"}
+{"t":"2026-02-27T01:27:55.035Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:28:11.314Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":16279,"durationHuman":"16s"}
+{"t":"2026-02-27T01:28:11.365Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:29:07.173Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T01:29:07.184Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":11,"durationHuman":"0s"}
+{"t":"2026-02-27T01:33:52.998Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":285825,"durationHuman":"4m 45s"}
+{"t":"2026-02-27T01:33:53.028Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T11:38:19.889Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T11:38:20.311Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":422,"durationHuman":"0s"}
+{"t":"2026-02-27T11:42:13.281Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T11:42:13.689Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":408,"durationHuman":"0s"}
+{"t":"2026-02-27T13:51:50.241Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":7776960,"durationHuman":"2h 9m"}
+{"t":"2026-02-27T13:51:50.271Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T13:51:53.015Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":2744,"durationHuman":"2s"}
+{"t":"2026-02-27T13:51:53.021Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T13:51:59.456Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":6435,"durationHuman":"6s"}
+{"t":"2026-02-27T13:51:59.487Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T13:52:04.958Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":5471,"durationHuman":"5s"}
+{"t":"2026-02-27T13:52:04.961Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T13:52:11.070Z","event":"start","agentId":"unknown","agentType":"unknown","parentSession":"unknown"}
+{"t":"2026-02-27T13:52:11.074Z","event":"stop","agentId":"unknown","agentType":"unknown","parentSession":"unknown","durationMs":4,"durationHuman":"0s"}

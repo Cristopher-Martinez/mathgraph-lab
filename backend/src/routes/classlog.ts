@@ -8,7 +8,6 @@ import {
 import { reconstruirCurriculo } from "../services/curriculumReconstruction";
 import { generarEjercicios } from "../services/exerciseGeneration";
 import {
-  failGeneration,
   getActiveGenerations,
   getGenerationStatusById,
 } from "../services/generationStatus";
@@ -16,8 +15,8 @@ import {
   procesarImagenesBatch,
   validarImagen,
 } from "../services/imageAnalysis";
-import { indexClassTranscript } from "../services/ragService";
 import { enqueuePropagation } from "../services/jobQueue";
+import { indexClassTranscript } from "../services/ragService";
 import {
   analizarTranscripcion,
   ImagenContexto,
@@ -216,19 +215,22 @@ router.post("/", async (req: Request, res: Response) => {
  * GET /class-log/generation-status/:classId
  * Consultar el estado de generación en background para una clase
  */
-router.get("/generation-status/:classId", async (req: Request, res: Response) => {
-  const classId = parseInt(req.params.classId, 10);
-  if (isNaN(classId)) {
-    res.status(400).json({ error: "classId inválido" });
-    return;
-  }
-  const status = await getGenerationStatusById(classId);
-  if (!status) {
-    res.json({ status: "none" });
-    return;
-  }
-  res.json(status);
-});
+router.get(
+  "/generation-status/:classId",
+  async (req: Request, res: Response) => {
+    const classId = parseInt(req.params.classId, 10);
+    if (isNaN(classId)) {
+      res.status(400).json({ error: "classId inválido" });
+      return;
+    }
+    const status = await getGenerationStatusById(classId);
+    if (!status) {
+      res.json({ status: "none" });
+      return;
+    }
+    res.json(status);
+  },
+);
 
 /**
  * GET /class-log/generation-status

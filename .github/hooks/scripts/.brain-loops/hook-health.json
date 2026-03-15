@@ -1,0 +1,66 @@
+{
+  "post-tool-capture": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.244Z",
+    "lastOk": "2026-02-27T13:52:11.244Z",
+    "consecutiveOk": 3,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "session-stop": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:12.036Z",
+    "lastOk": "2026-02-27T13:52:12.036Z",
+    "consecutiveOk": 3,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "pre-compact": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.066Z",
+    "lastOk": "2026-02-27T13:52:11.066Z",
+    "consecutiveOk": 2,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "subagent-start": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.075Z",
+    "lastOk": "2026-02-27T13:52:11.075Z",
+    "consecutiveOk": 2,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "subagent-stop": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.102Z",
+    "lastOk": "2026-02-27T13:52:11.102Z",
+    "consecutiveOk": 2,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "user-prompt-writer": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.091Z",
+    "lastOk": "2026-02-27T13:52:11.091Z",
+    "consecutiveOk": 2,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "session-start": {
+    "status": "ok",
+    "lastRun": "2026-02-27T13:52:11.232Z",
+    "lastOk": "2026-02-27T13:52:11.232Z",
+    "consecutiveOk": 2,
+    "lastError": null,
+    "lastCrash": null
+  },
+  "pre-tool-security": {
+    "status": "ok",
+    "lastRun": "2026-02-28T02:29:43.042Z",
+    "lastOk": "2026-02-28T02:29:43.042Z",
+    "consecutiveOk": 47,
+    "lastError": null,
+    "lastCrash": null
+  }
+}

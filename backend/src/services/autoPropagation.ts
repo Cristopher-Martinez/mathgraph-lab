@@ -1,12 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
 import { generarEjercicios } from "./exerciseGeneration";
-import { getRedis } from "./redisClient";
 import {
   completeGeneration,
   startGeneration,
   updateStep,
 } from "./generationStatus";
+import { getRedis } from "./redisClient";
 
 /**
  * Normaliza el nombre de un tema para consistencia

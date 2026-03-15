@@ -132,7 +132,7 @@ model ExerciseTip {
     id           Int      @id @default(autoincrement())
     exerciseId   Int      @unique
     tips         String // JSON array
-    classContext  String // JSON array
+    classContext String // JSON array
     createdAt    DateTime @default(now())
     exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 }

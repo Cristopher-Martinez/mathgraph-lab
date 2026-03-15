@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import TrainingConfigView from "../components/TrainingConfig";
-import TrainingSession from "../components/TrainingSession";
 import TrainingResults from "../components/TrainingResults";
+import TrainingSession from "../components/TrainingSession";
 import { api } from "../services/api";
 
 type Phase = "config" | "session" | "results";

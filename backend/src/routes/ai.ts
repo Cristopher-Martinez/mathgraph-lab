@@ -3,8 +3,8 @@ import { Request, Response, Router } from "express";
 import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
 import prisma from "../prismaClient";
-import { getRedis } from "../services/redisClient";
 import { searchChunks } from "../services/ragService";
+import { getRedis } from "../services/redisClient";
 
 const router = Router();
 
@@ -146,7 +146,9 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
         const correct = norm(userAnswer) === norm(expectedAnswer);
         res.json({
           correct,
-          feedback: correct ? "¡Correcto!" : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
+          feedback: correct
+            ? "¡Correcto!"
+            : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
         });
       }
     } else {
@@ -155,7 +157,9 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
       const correct = norm(userAnswer) === norm(expectedAnswer);
       res.json({
         correct,
-        feedback: correct ? "¡Correcto!" : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
+        feedback: correct
+          ? "¡Correcto!"
+          : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
       });
     }
   } catch (err) {
@@ -230,7 +234,9 @@ Reglas:
         conceptos: parsed.conceptos || "",
         ejemplos: Array.isArray(parsed.ejemplos) ? parsed.ejemplos : [],
         casosDeUso: Array.isArray(parsed.casosDeUso) ? parsed.casosDeUso : [],
-        curiosidades: Array.isArray(parsed.curiosidades) ? parsed.curiosidades : [],
+        curiosidades: Array.isArray(parsed.curiosidades)
+          ? parsed.curiosidades
+          : [],
       };
 
       // Save to DB for permanent reuse
@@ -298,10 +304,13 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
     let ragContext: { text: string; classId: number; score: number }[] = [];
     try {
       ragContext = await searchChunks(searchQuery, { topK: 5, minScore: 0.25 });
-    } catch { /* RAG may not be available */ }
+    } catch {
+      /* RAG may not be available */
+    }
 
     // 3. Search ClassNotes for tips/observations related to this topic's class
-    let classNotes: { titulo: string; contenido: string; categoria: string }[] = [];
+    let classNotes: { titulo: string; contenido: string; categoria: string }[] =
+      [];
     if (exercise.generatedByClassId) {
       classNotes = await prisma.classNote.findMany({
         where: {
@@ -315,17 +324,34 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
     // 4. Parse static hints from exercise
     let staticHints: string[] = [];
     if (exercise.hints) {
-      try { staticHints = JSON.parse(exercise.hints); } catch { /* ignore */ }
+      try {
+        staticHints = JSON.parse(exercise.hints);
+      } catch {
+        /* ignore */
+      }
     }
 
-    const classContext = classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria }));
+    const classContext = classNotes.map((n) => ({
+      titulo: n.titulo,
+      contenido: n.contenido,
+      categoria: n.categoria,
+    }));
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       const result = {
-        tips: staticHints.length > 0
-          ? staticHints.map(h => ({ text: h, source: "ejercicio" as const }))
-          : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" as const }],
+        tips:
+          staticHints.length > 0
+            ? staticHints.map((h) => ({
+                text: h,
+                source: "ejercicio" as const,
+              }))
+            : [
+                {
+                  text: "Identifica los datos del problema y la fórmula relevante.",
+                  source: "general" as const,
+                },
+              ],
         classContext,
       };
       res.json(result);
@@ -335,13 +361,15 @@ router.post("/exercise-tips", async (req: Request, res: Response) => {
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-    const ragSection = ragContext.length > 0
-      ? `\n\nFragmentos relevantes del registro de clase:\n${ragContext.map((r, i) => `[${i + 1}] ${r.text}`).join("\n\n")}`
-      : "";
+    const ragSection =
+      ragContext.length > 0
+        ? `\n\nFragmentos relevantes del registro de clase:\n${ragContext.map((r, i) => `[${i + 1}] ${r.text}`).join("\n\n")}`
+        : "";
 
-    const notesSection = classNotes.length > 0
-      ? `\n\nNotas del profesor sobre este tema:\n${classNotes.map(n => `- [${n.categoria}] ${n.titulo}: ${n.contenido}`).join("\n")}`
-      : "";
+    const notesSection =
+      classNotes.length > 0
+        ? `\n\nNotas del profesor sobre este tema:\n${classNotes.map((n) => `- [${n.categoria}] ${n.titulo}: ${n.contenido}`).join("\n")}`
+        : "";
 
     const prompt = `Eres un tutor matemático. Genera consejos para ayudar a resolver este ejercicio SIN dar la respuesta.
 
@@ -372,9 +400,20 @@ Reglas:
       const tips = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
       const response = {
-        tips: tips.length > 0 ? tips : (staticHints.length > 0
-          ? staticHints.map((h: string) => ({ text: h, source: "ejercicio" }))
-          : [{ text: "Identifica los datos del problema y aplica la fórmula adecuada.", source: "general" }]),
+        tips:
+          tips.length > 0
+            ? tips
+            : staticHints.length > 0
+              ? staticHints.map((h: string) => ({
+                  text: h,
+                  source: "ejercicio",
+                }))
+              : [
+                  {
+                    text: "Identifica los datos del problema y aplica la fórmula adecuada.",
+                    source: "general",
+                  },
+                ],
         classContext,
       };
 
@@ -391,9 +430,15 @@ Reglas:
     } catch (err) {
       console.error("Gemini exercise-tips error:", err);
       res.json({
-        tips: staticHints.length > 0
-          ? staticHints.map(h => ({ text: h, source: "ejercicio" }))
-          : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" }],
+        tips:
+          staticHints.length > 0
+            ? staticHints.map((h) => ({ text: h, source: "ejercicio" }))
+            : [
+                {
+                  text: "Identifica los datos del problema y la fórmula relevante.",
+                  source: "general",
+                },
+              ],
         classContext,
       });
     }
@@ -407,8 +452,12 @@ function getFallbackDocs(topicName: string) {
   return {
     conceptos: `Documentación para "${topicName}" no disponible sin conexión a IA. Consulta tus apuntes de clase o materiales de referencia.`,
     ejemplos: [],
-    casosDeUso: ["Consulta tus apuntes de clase para ver aplicaciones prácticas."],
-    curiosidades: ["Activa la conexión a la IA para ver curiosidades sobre este tema."],
+    casosDeUso: [
+      "Consulta tus apuntes de clase para ver aplicaciones prácticas.",
+    ],
+    curiosidades: [
+      "Activa la conexión a la IA para ver curiosidades sobre este tema.",
+    ],
   };
 }
 

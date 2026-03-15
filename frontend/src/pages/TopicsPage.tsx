@@ -559,9 +559,15 @@ export default function TopicsPage() {
   if (id && !topic) {
     return (
       <div className="text-center py-20">
-        <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">Este tema ya no existe.</p>
-        <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Es posible que la clase asociada haya sido eliminada.</p>
-        <Link to="/topics" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+        <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">
+          Este tema ya no existe.
+        </p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">
+          Es posible que la clase asociada haya sido eliminada.
+        </p>
+        <Link
+          to="/topics"
+          className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
           ← Volver a Temas
         </Link>
       </div>

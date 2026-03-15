@@ -407,11 +407,12 @@ export default function TrainingConfig({
           </div>
         </section>
 
-        <section className={`bg-white dark:bg-gray-800 rounded-xl p-6 border space-y-3 transition-all ${
-          socratic
-            ? "border-purple-400 dark:border-purple-600 ring-1 ring-purple-300 dark:ring-purple-700"
-            : "border-gray-200 dark:border-gray-700"
-        }`}>
+        <section
+          className={`bg-white dark:bg-gray-800 rounded-xl p-6 border space-y-3 transition-all ${
+            socratic
+              ? "border-purple-400 dark:border-purple-600 ring-1 ring-purple-300 dark:ring-purple-700"
+              : "border-gray-200 dark:border-gray-700"
+          }`}>
           <h2 className="text-lg font-semibold dark:text-gray-200">
             Modo Socrático
           </h2>

@@ -61,7 +61,9 @@ try {
 
   worker.on("error", (err) => {
     if (err.message.includes("Redis version")) {
-      console.warn("[JobQueue] Redis version too old for BullMQ, using fallback");
+      console.warn(
+        "[JobQueue] Redis version too old for BullMQ, using fallback",
+      );
       ready = false;
     } else {
       console.error("[JobQueue] Worker error:", err.message);

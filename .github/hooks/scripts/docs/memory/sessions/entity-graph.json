@@ -1,0 +1,446 @@
+{
+  "nodes": {
+    "memory": {
+      "type": "topic",
+      "mentions": 1475,
+      "lastSeen": "2026-02-27"
+    },
+    "config": {
+      "type": "topic",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "brain-hq": {
+      "type": "topic",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "lm-tools": {
+      "type": "topic",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "loops": {
+      "type": "topic",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "documenter.agent.md": {
+      "type": "file",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "onboard.agent.md": {
+      "type": "file",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "planner.agent.md": {
+      "type": "file",
+      "mentions": 150,
+      "lastSeen": "2026-02-26"
+    },
+    "subagent-tracking.jsonl": {
+      "type": "file",
+      "mentions": 154,
+      "lastSeen": "2026-02-27"
+    },
+    "audit-gate.mjs": {
+      "type": "file",
+      "mentions": 50,
+      "lastSeen": "2026-02-26"
+    },
+    "07_SESSION_HANDOFF.md": {
+      "type": "file",
+      "mentions": 1206,
+      "lastSeen": "2026-02-27"
+    },
+    "hook-call-counter.txt": {
+      "type": "file",
+      "mentions": 50,
+      "lastSeen": "2026-02-26"
+    },
+    ".session-pending.json": {
+      "type": "file",
+      "mentions": 1143,
+      "lastSeen": "2026-02-27"
+    },
+    "16_SESSION_DIARY.md": {
+      "type": "file",
+      "mentions": 1143,
+      "lastSeen": "2026-02-27"
+    },
+    "_test_bad_tsc_temp_.ts": {
+      "type": "file",
+      "mentions": 104,
+      "lastSeen": "2026-02-27"
+    },
+    "subagent-analytics.md": {
+      "type": "file",
+      "mentions": 30,
+      "lastSeen": "2026-02-27"
+    },
+    "static": {
+      "type": "topic",
+      "mentions": 13,
+      "lastSeen": "2026-02-27"
+    },
+    "04_LEARNINGS.md": {
+      "type": "file",
+      "mentions": 28,
+      "lastSeen": "2026-02-27"
+    },
+    "04_LEARNINGS_ARCHIVE.md": {
+      "type": "file",
+      "mentions": 13,
+      "lastSeen": "2026-02-27"
+    },
+    "scripts": {
+      "type": "topic",
+      "mentions": 15,
+      "lastSeen": "2026-02-27"
+    },
+    "projectbrain.agent.md": {
+      "type": "file",
+      "mentions": 15,
+      "lastSeen": "2026-02-27"
+    },
+    "05_TROUBLESHOOTING.md": {
+      "type": "file",
+      "mentions": 15,
+      "lastSeen": "2026-02-27"
+    }
+  },
+  "edges": [
+    {
+      "from": "config",
+      "to": "memory",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "memory",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "lm-tools",
+      "to": "memory",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "loops",
+      "to": "memory",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "documenter.agent.md",
+      "to": "memory",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "memory",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "memory",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "config",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "config",
+      "to": "lm-tools",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "config",
+      "to": "loops",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "config",
+      "to": "documenter.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "config",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "config",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "lm-tools",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "loops",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "documenter.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "brain-hq",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "lm-tools",
+      "to": "loops",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "documenter.agent.md",
+      "to": "lm-tools",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "lm-tools",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "lm-tools",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "documenter.agent.md",
+      "to": "loops",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "loops",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "loops",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "documenter.agent.md",
+      "to": "onboard.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "documenter.agent.md",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "onboard.agent.md",
+      "to": "planner.agent.md",
+      "weight": 47.525910967318275
+    },
+    {
+      "from": "memory",
+      "to": "subagent-tracking.jsonl",
+      "weight": 67.1230210114352
+    },
+    {
+      "from": "audit-gate.mjs",
+      "to": "memory",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "memory",
+      "weight": 603.1554042832005
+    },
+    {
+      "from": "hook-call-counter.txt",
+      "to": "memory",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "audit-gate.mjs",
+      "to": "subagent-tracking.jsonl",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "subagent-tracking.jsonl",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "hook-call-counter.txt",
+      "to": "subagent-tracking.jsonl",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "audit-gate.mjs",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "audit-gate.mjs",
+      "to": "hook-call-counter.txt",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "hook-call-counter.txt",
+      "weight": 17.53804546974243
+    },
+    {
+      "from": ".session-pending.json",
+      "to": "memory",
+      "weight": 574.2859425478332
+    },
+    {
+      "from": "16_SESSION_DIARY.md",
+      "to": "memory",
+      "weight": 574.2859425478332
+    },
+    {
+      "from": ".session-pending.json",
+      "to": "07_SESSION_HANDOFF.md",
+      "weight": 574.2859425478332
+    },
+    {
+      "from": ".session-pending.json",
+      "to": "16_SESSION_DIARY.md",
+      "weight": 574.2859425478332
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "16_SESSION_DIARY.md",
+      "weight": 574.2859425478332
+    },
+    {
+      "from": "_test_bad_tsc_temp_.ts",
+      "to": "memory",
+      "weight": 49.58497554169274
+    },
+    {
+      "from": "_test_bad_tsc_temp_.ts",
+      "to": "subagent-tracking.jsonl",
+      "weight": 49.58497554169274
+    },
+    {
+      "from": "memory",
+      "to": "subagent-analytics.md",
+      "weight": 15.70722472114124
+    },
+    {
+      "from": "subagent-analytics.md",
+      "to": "subagent-tracking.jsonl",
+      "weight": 15.70722472114124
+    },
+    {
+      "from": "_test_bad_tsc_temp_.ts",
+      "to": "subagent-analytics.md",
+      "weight": 15.70722472114124
+    },
+    {
+      "from": "memory",
+      "to": "static",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "memory",
+      "weight": 25.368172515624998
+    },
+    {
+      "from": "04_LEARNINGS_ARCHIVE.md",
+      "to": "memory",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "static",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS_ARCHIVE.md",
+      "to": "static",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "07_SESSION_HANDOFF.md",
+      "to": "static",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "04_LEARNINGS_ARCHIVE.md",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "07_SESSION_HANDOFF.md",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "04_LEARNINGS_ARCHIVE.md",
+      "to": "07_SESSION_HANDOFF.md",
+      "weight": 11.331416265624998
+    },
+    {
+      "from": "memory",
+      "to": "scripts",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "memory",
+      "to": "projectbrain.agent.md",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "05_TROUBLESHOOTING.md",
+      "to": "memory",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "projectbrain.agent.md",
+      "to": "scripts",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "scripts",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "05_TROUBLESHOOTING.md",
+      "to": "scripts",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "projectbrain.agent.md",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "05_TROUBLESHOOTING.md",
+      "to": "projectbrain.agent.md",
+      "weight": 14.036756249999998
+    },
+    {
+      "from": "04_LEARNINGS.md",
+      "to": "05_TROUBLESHOOTING.md",
+      "weight": 14.036756249999998
+    }
+  ]
+}

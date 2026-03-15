@@ -75,19 +75,24 @@ export default function TrainingResults({ session, onRestart }: Props) {
 
       {/* Score */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-8 border border-gray-200 dark:border-gray-700 text-center">
-        {session.config?.socratic && (metrics.socraticScore || session.socraticTotalScore) ? (
+        {session.config?.socratic &&
+        (metrics.socraticScore || session.socraticTotalScore) ? (
           <>
             <div className="text-6xl font-bold text-purple-600 dark:text-purple-400">
               {metrics.socraticScore || session.socraticTotalScore || 0}
             </div>
-            <p className="text-2xl font-semibold mt-1 dark:text-gray-300">puntos</p>
+            <p className="text-2xl font-semibold mt-1 dark:text-gray-300">
+              puntos
+            </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {correctCount}/{total} ejercicios completados ({pct}%)
             </p>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              {(metrics.socraticScore || session.socraticTotalScore || 0) >= total * 80
+              {(metrics.socraticScore || session.socraticTotalScore || 0) >=
+              total * 80
                 ? "🏆 ¡Rendimiento excepcional!"
-                : (metrics.socraticScore || session.socraticTotalScore || 0) >= total * 50
+                : (metrics.socraticScore || session.socraticTotalScore || 0) >=
+                    total * 50
                   ? "🌟 ¡Muy buen trabajo!"
                   : "💪 Sigue practicando — ¡mejorarás!"}
             </p>
@@ -97,7 +102,9 @@ export default function TrainingResults({ session, onRestart }: Props) {
             <div className="text-6xl font-bold text-indigo-600 dark:text-indigo-400">
               {correctCount}/{total}
             </div>
-            <p className="text-2xl font-semibold mt-1 dark:text-gray-300">{pct}%</p>
+            <p className="text-2xl font-semibold mt-1 dark:text-gray-300">
+              {pct}%
+            </p>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
               {pct === 100
                 ? "¡Puntuación perfecta!"
@@ -154,7 +161,10 @@ export default function TrainingResults({ session, onRestart }: Props) {
         />
         <StatCard label="Pistas usadas" value={String(metrics.hintsUsed)} />
         {session.config?.socratic && (
-          <StatCard label="Puntaje socrático" value={`${metrics.socraticScore || session.socraticTotalScore || 0} pts`} />
+          <StatCard
+            label="Puntaje socrático"
+            value={`${metrics.socraticScore || session.socraticTotalScore || 0} pts`}
+          />
         )}
         <StatCard label="Timeouts" value={String(metrics.timeouts)} />
         <StatCard
