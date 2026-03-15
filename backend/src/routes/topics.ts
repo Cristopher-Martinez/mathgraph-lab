@@ -63,7 +63,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     }
     const topic = await prisma.topic.findUnique({
       where: { id },
-      include: { exercises: true, formulas: true },
+      include: { exercises: true, formulas: true, doc: true },
     });
     if (!topic) {
       res.status(404).json({ error: "Topic not found" });

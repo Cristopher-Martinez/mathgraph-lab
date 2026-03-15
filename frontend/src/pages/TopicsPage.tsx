@@ -68,14 +68,26 @@ export default function TopicsPage() {
           setSelectedDifficulty(null);
           setPage(1);
           // Load topic documentation
-          setDocsLoading(true);
-          setTopicDocs(null);
           setDocsTab("conceptos");
-          api
-            .getTopicDocs(data.name)
-            .then(setTopicDocs)
-            .catch(() => {})
-            .finally(() => setDocsLoading(false));
+          if (data.doc) {
+            // Docs already in DB — use them directly (no AI call)
+            setTopicDocs({
+              conceptos: data.doc.conceptos,
+              ejemplos: JSON.parse(data.doc.ejemplos),
+              casosDeUso: JSON.parse(data.doc.casosDeUso),
+              curiosidades: JSON.parse(data.doc.curiosidades),
+            });
+            setDocsLoading(false);
+          } else {
+            // No docs yet — generate on-demand
+            setDocsLoading(true);
+            setTopicDocs(null);
+            api
+              .getTopicDocs(data.name)
+              .then(setTopicDocs)
+              .catch(() => {})
+              .finally(() => setDocsLoading(false));
+          }
         })
         .catch(() => {
           setTopic(null);
