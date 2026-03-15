@@ -34,17 +34,21 @@ export async function analyzeAndPropagate(
   const { analizarTranscripcion } = await import("./transcriptAnalysis");
   const { validarImagen } = await import("./imageAnalysis");
   const { indexClassTranscript } = await import("./ragService");
-  const { startGeneration: startGen, updateStep: updStep, completeGeneration: completeGen } = await import("./generationStatus");
+  const { broadcastGenerationUpdate } = await import("./websocket");
 
-  // Initialize generation tracking with a placeholder step for analysis
-  await startGen(classId, ["Analizando transcripción"], "class");
-  await updStep(classId, "Analizando transcripción", "running");
+  // Broadcast initial status manually (propagateClassChanges will create full pipeline)
+  broadcastGenerationUpdate({
+    classId,
+    type: "class",
+    status: "running",
+    steps: [{ label: "Analizando transcripción", status: "running" }],
+    startedAt: Date.now(),
+  });
 
   try {
     // Cancel check
     if (await isCancelled(classId)) {
       console.log(`[AnalyzeAndPropagate] Cancelled for class ${classId}`);
-      await updStep(classId, "Analizando transcripción", "error", "cancelado");
       return;
     }
 
@@ -69,7 +73,7 @@ export async function analyzeAndPropagate(
       ? await analizarTranscripcion(textoFinal, imagenesContexto.length > 0 ? imagenesContexto : undefined)
       : { temas: [], formulas: [], tiposEjercicio: [], resumen: "Clase sin contenido.", conceptosClave: [], actividades: [] };
 
-    await updStep(classId, "Analizando transcripción", "done");
+    // Broadcast analysis done
 
     // Cancel check
     if (await isCancelled(classId)) return;
@@ -93,10 +97,9 @@ export async function analyzeAndPropagate(
     }
 
     // 5. Propagate (topics, exercises, docs, DAG) — reuses existing logic
-    await propagateClassChanges(classId);
+    await propagateClassChanges(classId, true);
   } catch (err: any) {
     console.error(`[AnalyzeAndPropagate] Error for class ${classId}:`, err);
-    await updStep(classId, "Analizando transcripción", "error", err.message);
     throw err;
   }
 }
@@ -177,7 +180,7 @@ async function findExistingTopic(
  * - En su lugar, genera ejercicios de REFUERZO para ese tema existente.
  * - Los ejercicios de refuerzo se marcan con generatedByClassId de la nueva clase.
  */
-export async function propagateClassChanges(classId: number) {
+export async function propagateClassChanges(classId: number, analysisCompleted: boolean = false) {
   console.log(`[AutoPropagation] Iniciando propagación para clase ${classId}`);
 
   // Guard 1: Check if already completed
@@ -197,13 +200,13 @@ export async function propagateClassChanges(classId: number) {
   }
 
   try {
-    return await _doPropagation(classId);
+    return await _doPropagation(classId, analysisCompleted);
   } finally {
     await redis.del(lockKey);
   }
 }
 
-async function _doPropagation(classId: number) {
+async function _doPropagation(classId: number, analysisCompleted: boolean = false) {
   // Cancel check
   if (await isCancelled(classId)) {
     console.log(`[AutoPropagation] Propagación cancelada para clase ${classId}`);
@@ -263,7 +266,7 @@ async function _doPropagation(classId: number) {
   }
 
   // Inicializar tracking de estado
-  await startGeneration(classId, temas);
+  await startGeneration(classId, temas, "class", analysisCompleted);
 
   // 1. Resolver topics con deduplicación
   await updateStep(classId, "Creando temas", "running");
@@ -388,7 +391,37 @@ async function _doPropagation(classId: number) {
         medio: "medium",
         dificil: "hard",
       };
-      const data = ejerciciosValidos.map((ej) => ({
+
+      // Content-based dedup: filter exercises too similar to existing ones
+      const existingExercises = await prisma.exercise.findMany({
+        where: { topicId: topicInfo.id },
+        select: { latex: true },
+      });
+      const existingTexts = existingExercises.map((e) =>
+        e.latex.trim().toLowerCase().replace(/\s+/g, " "),
+      );
+
+      const uniqueExercises = ejerciciosValidos.filter((ej) => {
+        const normalized = ej.pregunta.trim().toLowerCase().replace(/\s+/g, " ");
+        return !existingTexts.some((existing) => similarity(normalized, existing) > 0.8);
+      });
+
+      if (uniqueExercises.length < ejerciciosValidos.length) {
+        console.log(
+          `[AutoPropagation] Dedup: ${ejerciciosValidos.length - uniqueExercises.length} ejercicios duplicados filtrados para "${topicInfo.name}"`,
+        );
+      }
+
+      if (uniqueExercises.length === 0) {
+        await updateStep(classId, stepLabel, "done", "todos duplicados");
+        return {
+          topic: topicInfo.name,
+          generados: 0,
+          tipo: tipoGeneracion as "nuevo" | "refuerzo",
+        };
+      }
+
+      const data = uniqueExercises.map((ej) => ({
         topicId: topicInfo.id,
         latex: ej.pregunta,
         difficulty: diffMap[ej.dificultad] || ej.dificultad,

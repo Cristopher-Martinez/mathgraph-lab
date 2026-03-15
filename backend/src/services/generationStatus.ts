@@ -22,9 +22,13 @@ export async function startGeneration(
   classId: number,
   topicNames: string[],
   type: "class" | "notes" = "class",
+  analysisCompleted: boolean = false,
 ): Promise<void> {
   const steps: GenerationStep[] = [];
   if (type === "class") {
+    if (analysisCompleted) {
+      steps.push({ label: "Analizando transcripción", status: "done" });
+    }
     steps.push({ label: "Creando temas", status: "pending" });
     for (const name of topicNames) {
       steps.push({ label: `Ejercicios: ${name}`, status: "pending" });
