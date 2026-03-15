@@ -2,6 +2,114 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
 import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
+// ─── Sanitización de transcripciones ──────────────────
+
+// Muletillas y rellenos comunes en español (speech-to-text)
+const FILLER_WORDS = /\b(eh+|um+|mm+|hmm+|ah+|este|pues nada|o sea|digamos|bueno bueno|a ver a ver)\b/gi;
+
+/**
+ * Sanitiza una transcripción de voz-a-texto con limpieza basada en regex.
+ * Elimina repeticiones, muletillas, normaliza espacios y párrafos.
+ */
+export function sanitizeTranscript(raw: string): string {
+  let text = raw;
+
+  // 1. Normalizar saltos de línea
+  text = text.replace(/\r\n/g, "\n");
+
+  // 2. Eliminar palabras consecutivas repetidas (ej: "el el el" → "el")
+  text = text.replace(/\b(\w+)(?:\s+\1){1,}\b/gi, "$1");
+
+  // 3. Eliminar muletillas comunes
+  text = text.replace(FILLER_WORDS, "");
+
+  // 4. Normalizar espacios múltiples → uno solo
+  text = text.replace(/[ \t]{2,}/g, " ");
+
+  // 5. Normalizar saltos de línea excesivos (3+ → 2)
+  text = text.replace(/\n{3,}/g, "\n\n");
+
+  // 6. Eliminar líneas que son solo espacios
+  text = text.replace(/^\s+$/gm, "");
+
+  // 7. Limpiar puntuación redundante (... ... → ...)
+  text = text.replace(/\.{4,}/g, "...");
+  text = text.replace(/,{2,}/g, ",");
+
+  // 8. Trim por línea
+  text = text
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n");
+
+  // 9. Trim final
+  text = text.trim();
+
+  return text;
+}
+
+/**
+ * Sanitización profunda usando Gemini: reescribe la transcripción
+ * como texto coherente preservando todo el contenido matemático.
+ */
+export async function sanitizeTranscriptAI(
+  raw: string,
+  summary?: string | null,
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY no configurada");
+
+  // Primero limpieza regex
+  const cleaned = sanitizeTranscript(raw);
+
+  // Si es corto, no vale la pena pasar por AI
+  if (cleaned.length < 500) return cleaned;
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 8192,
+    },
+  });
+
+  const SANITIZE_PROMPT = `Eres un editor académico. Tu tarea es limpiar y reestructurar una transcripción de voz-a-texto de una clase de matemáticas.
+
+REGLAS:
+- PRESERVA todo el contenido académico: definiciones, fórmulas, ejemplos, explicaciones
+- ELIMINA muletillas, repeticiones, falsos inicios, ruido del speech-to-text
+- REORGANIZA en párrafos coherentes por tema/concepto
+- MANTÉN un tono formal pero accesible
+- NO inventes contenido que no esté en la transcripción original
+- NO resumas: mantén el detalle completo de las explicaciones
+${summary ? `\nContexto: ${summary}` : ""}
+
+Transcripción a limpiar:
+${cleaned.slice(0, 30000)}`;
+
+  try {
+    const cKey = cacheKey("sanitize", cleaned.slice(0, 200) + cleaned.length);
+    const cached = await getCached<string>(cKey);
+    if (cached) return cached;
+
+    const result = await model.generateContent(SANITIZE_PROMPT);
+    const sanitized = result.response.text().trim();
+
+    if (sanitized.length > 100) {
+      await setCached(cKey, sanitized, TTL.ANALYSIS);
+      console.log(
+        `[RAG] Transcripción sanitizada por AI: ${cleaned.length} → ${sanitized.length} chars`,
+      );
+      return sanitized;
+    }
+  } catch (err) {
+    console.error("[RAG] Error en sanitización AI, usando limpieza regex:", err);
+  }
+
+  return cleaned;
+}
+
 // ─── Chunking ─────────────────────────────────────────
 
 const CHUNK_SIZE = 800; // ~800 tokens por chunk
@@ -155,10 +263,18 @@ export async function indexClassTranscript(
   transcript: string,
   summary?: string | null,
 ): Promise<{ chunksCreated: number }> {
+  // Sanitizar transcripción antes de indexar
+  let cleanText: string;
+  try {
+    cleanText = await sanitizeTranscriptAI(transcript, summary);
+  } catch {
+    cleanText = sanitizeTranscript(transcript);
+  }
+
   // Incluir el resumen como primer chunk de contexto
   const fullText = summary
-    ? `Resumen de la clase: ${summary}\n\n${transcript}`
-    : transcript;
+    ? `Resumen de la clase: ${summary}\n\n${cleanText}`
+    : cleanText;
 
   const chunks = chunkText(fullText);
   if (chunks.length === 0) return { chunksCreated: 0 };
