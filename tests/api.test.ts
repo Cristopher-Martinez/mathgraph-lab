@@ -145,3 +145,22 @@ function injectRequest(
     });
   });
 }
+
+describe("Frontend API client — contrato", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const apiContent = fs.readFileSync(
+    path.join(__dirname, "../frontend/src/services/api.ts"),
+    "utf-8",
+  );
+
+  it("generateClassExercises acepta solo id (sin cantidad)", () => {
+    expect(apiContent).toMatch(
+      /generateClassExercises:\s*\(id:\s*number\)\s*=>/,
+    );
+  });
+
+  it("generate-exercises usa POST", () => {
+    expect(apiContent).toContain("generate-exercises");
+  });
+});

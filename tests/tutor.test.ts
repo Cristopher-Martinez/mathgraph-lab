@@ -308,4 +308,29 @@ describe("Tutor Socrático — Rutas", () => {
     const data = JSON.parse(res.body);
     expect(data.score).toBe(0);
   });
+
+  // ─── Regression: checkAnswer devuelve objeto, no booleano ───
+  test("POST /tutor/answer respuesta incorrecta NO se marca como correcta", async () => {
+    const app = createTestApp();
+    const res = await injectRequest(app, "POST", "/tutor/answer", {
+      exerciseId: 1,
+      step: 0,
+      answer: "xyz respuesta completamente incorrecta",
+    });
+    expect(res.status).toBe(200);
+    const data = JSON.parse(res.body);
+    expect(data.correct).toBe(false);
+  });
+
+  test("POST /tutor/hint nivel 1-2 no revela respuesta", async () => {
+    const app = createTestApp();
+    const res = await injectRequest(app, "POST", "/tutor/hint", {
+      exerciseId: 1,
+      step: 0,
+      hintLevel: 1,
+    });
+    const data = JSON.parse(res.body);
+    expect(data.revealed).toBe(false);
+    expect(data.scorePenalty).toBe(10);
+  });
 });

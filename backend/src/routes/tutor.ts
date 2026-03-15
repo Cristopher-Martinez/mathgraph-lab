@@ -355,7 +355,7 @@ router.post("/answer", async (req: Request, res: Response) => {
     }
 
     const currentStep = socratic[step];
-    const isCorrect = checkAnswer(answer, currentStep.expected);
+    const { correct: isCorrect } = checkAnswer(answer, currentStep.expected);
     const isLastStep = step >= socratic.length - 1;
 
     if (isCorrect) {
@@ -641,13 +641,14 @@ Reglas:
       }
     }
 
-    // Penalización gradual: 10pts por las primeras 3, luego 5pts extra por cada una
-    const scorePenalty = level <= 3 ? level * 10 : 30 + (level - 3) * 5;
+    // Nivel 3+ se considera revelación (penalización mayor)
+    const isRevealed = level >= 3;
+    const scorePenalty = isRevealed ? 40 : level * 10;
 
     res.json({
       hint,
       level,
-      revealed: false,
+      revealed: isRevealed,
       scorePenalty,
     });
   } catch (err) {

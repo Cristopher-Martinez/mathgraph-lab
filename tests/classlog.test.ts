@@ -421,18 +421,59 @@ describe("Edge Cases - Batch de imágenes", () => {
   });
 });
 
+describe("parseGeminiJSON — usado en classlog.ts para ejercicios inline", () => {
+  it("debe parsear JSON válido directo", async () => {
+    const { parseGeminiJSON } =
+      await import("../backend/src/utils/parseGeminiJSON");
+
+    const result = parseGeminiJSON(
+      '{"pregunta": "Calcula 2+2", "solucion": "4", "pistas": ["Suma"]}'
+    );
+    expect(result.pregunta).toBe("Calcula 2+2");
+    expect(result.solucion).toBe("4");
+    expect(result.pistas).toEqual(["Suma"]);
+  });
+
+  it("debe parsear JSON con LaTeX sin corromper comandos", async () => {
+    const { parseGeminiJSON } =
+      await import("../backend/src/utils/parseGeminiJSON");
+
+    const input = '{"pregunta": "Calcula \\\\frac{a}{b}", "solucion": "\\\\sqrt{4} = 2", "pistas": []}';
+    const result = parseGeminiJSON(input);
+    expect(result).not.toBeNull();
+    expect(result.pregunta).toContain("frac");
+    expect(result.solucion).toContain("sqrt");
+  });
+
+  it("debe manejar respuesta con markdown code blocks", async () => {
+    const { parseGeminiJSON } =
+      await import("../backend/src/utils/parseGeminiJSON");
+
+    const input =
+      '```json\n{"pregunta": "Resuelve x+1=3", "solucion": "x=2", "pistas": ["Despeja x"]}\n```';
+    const result = parseGeminiJSON(input);
+    expect(result).not.toBeNull();
+    expect(result.pregunta).toBe("Resuelve x+1=3");
+  });
+
+  it("debe devolver null para texto no-JSON", async () => {
+    const { parseGeminiJSON } =
+      await import("../backend/src/utils/parseGeminiJSON");
+
+    expect(parseGeminiJSON("esto no es json")).toBeNull();
+    expect(parseGeminiJSON("")).toBeNull();
+  });
+});
+
 describe("Edge Cases - Deduplicación", () => {
   it("debe deduplicar temas similares en fusión local", async () => {
     jest.resetModules();
-    // Probamos que la función de deduplicación funciona
-    // al fusionar resultados parciales manualmente
     const items = [
       "Pendiente",
       "pendiente",
       "La pendiente",
       "Ecuación de la recta",
     ];
-    // Al menos "Pendiente" y similares deben reducirse
     const unique = new Set(items.map((i) => i.toLowerCase()));
     expect(unique.size).toBeLessThan(items.length);
   });
