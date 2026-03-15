@@ -139,6 +139,7 @@ router.post("/", async (req: Request, res: Response) => {
         tiposEjercicio: [],
         resumen: "Clase registrada sin contenido analizable.",
         conceptosClave: [],
+        actividades: [],
       };
     }
 
@@ -150,6 +151,7 @@ router.post("/", async (req: Request, res: Response) => {
         summary: analisisTranscripcion.resumen,
         topics: JSON.stringify(analisisTranscripcion.temas),
         formulas: JSON.stringify(analisisTranscripcion.formulas),
+        activities: JSON.stringify(analisisTranscripcion.actividades),
         images: {
           create: imagenesData.map((img) => ({
             url: img.url,
@@ -186,6 +188,7 @@ router.post("/", async (req: Request, res: Response) => {
       summary: analisisTranscripcion.resumen,
       temas: analisisTranscripcion.temas,
       formulas: analisisTranscripcion.formulas,
+      actividades: analisisTranscripcion.actividades,
       conceptosClave: analisisTranscripcion.conceptosClave,
       tiposEjercicio: analisisTranscripcion.tiposEjercicio,
       imagenes: classLog.images.length,
@@ -258,6 +261,7 @@ router.get("/", async (_req: Request, res: Response) => {
       summary: c.summary,
       temas: safeParseJson(c.topics),
       formulas: safeParseJson(c.formulas),
+      actividades: safeParseJson(c.activities),
       cantidadImagenes: c.images.length,
       createdAt: c.createdAt,
     }));
@@ -464,6 +468,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       summary: clase.summary,
       temas: safeParseJson(clase.topics),
       formulas: safeParseJson(clase.formulas),
+      actividades: safeParseJson(clase.activities),
       imagenes: clase.images,
       ejercicios: ejerciciosGenerados.map((ej) => ({
         id: ej.id,

@@ -15,6 +15,7 @@ export interface TranscriptAnalysisResult {
   tiposEjercicio: string[];
   resumen: string;
   conceptosClave: string[];
+  actividades: string[];
 }
 
 // Umbral de caracteres para activar chunking (~30k chars ≈ 7500 tokens)
@@ -31,6 +32,7 @@ Extrae lo siguiente:
 - Tipos de ejercicios que se resolvieron o mencionaron
 - Un resumen conciso de la clase
 - Conceptos clave explicados
+- Actividades asignadas por el profesor (tareas, ejercicios para practicar, cosas para repasar, trabajos, etc.)
 
 IMPORTANTE:
 - La transcripción puede ser de voz-a-texto, con errores gramaticales, repeticiones o fragmentos incompletos. Interpreta el contenido de forma flexible.
@@ -43,7 +45,8 @@ Responde SOLO con JSON válido en este formato exacto:
   "formulas": ["fórmulas mencionadas en formato legible"],
   "tiposEjercicio": ["tipos de ejercicio identificados"],
   "resumen": "resumen conciso de la clase en 2-3 oraciones",
-  "conceptosClave": ["conceptos clave explicados"]
+  "conceptosClave": ["conceptos clave explicados"],
+  "actividades": ["actividades asignadas por el profesor: tareas, ejercicios para casa, cosas para repasar"]
 }`;
 
 const PROMPT_CHUNK = `Analiza este FRAGMENTO de una transcripción de clase de matemáticas (parte {partNum} de {totalParts}).
@@ -54,6 +57,7 @@ Extrae lo siguiente de ESTE fragmento solamente:
 - Tipos de ejercicios
 - Resumen de este fragmento
 - Conceptos clave
+- Actividades asignadas (tareas, ejercicios para practicar, cosas para repasar)
 
 IMPORTANTE:
 - La transcripción puede ser de voz-a-texto, con errores gramaticales, repeticiones o fragmentos incompletos. Interpreta el contenido de forma flexible.
@@ -66,7 +70,8 @@ Responde SOLO con JSON válido:
   "formulas": ["fórmulas encontradas"],
   "tiposEjercicio": ["tipos de ejercicio"],
   "resumen": "resumen de este fragmento",
-  "conceptosClave": ["conceptos clave"]
+  "conceptosClave": ["conceptos clave"],
+  "actividades": ["actividades asignadas en este fragmento"]
 }`;
 
 const PROMPT_MERGE = `Tienes los análisis parciales de una transcripción de clase de matemáticas que fue dividida en fragmentos.
@@ -82,6 +87,7 @@ Genera UN resultado unificado con:
 - Tipos de ejercicio (sin duplicados)
 - UN resumen general de toda la clase (2-3 oraciones)
 - Conceptos clave (sin duplicados)
+- Actividades asignadas (sin duplicados)
 
 Responde SOLO con JSON válido:
 {
@@ -89,7 +95,8 @@ Responde SOLO con JSON válido:
   "formulas": ["fórmulas únicas"],
   "tiposEjercicio": ["tipos de ejercicio únicos"],
   "resumen": "resumen completo de la clase",
-  "conceptosClave": ["conceptos clave únicos"]
+  "conceptosClave": ["conceptos clave únicos"],
+  "actividades": ["actividades asignadas únicas"]
 }`;
 
 function getModel() {
@@ -167,6 +174,7 @@ function parseAnalysis(jsonStr: string): TranscriptAnalysisResult | null {
       tiposEjercicio: parsed.tiposEjercicio || [],
       resumen: parsed.resumen || "",
       conceptosClave: parsed.conceptosClave || [],
+      actividades: parsed.actividades || [],
     };
   } catch {
     return null;
@@ -179,6 +187,7 @@ const EMPTY_RESULT: TranscriptAnalysisResult = {
   tiposEjercicio: [],
   resumen: "No se pudo analizar la transcripción.",
   conceptosClave: [],
+  actividades: [],
 };
 
 /**
@@ -276,6 +285,7 @@ function fusionLocal(
   const formulasSet = new Set<string>();
   const tiposSet = new Set<string>();
   const conceptosSet = new Set<string>();
+  const actividadesSet = new Set<string>();
   const resumenes: string[] = [];
 
   for (const p of parciales) {
@@ -283,6 +293,7 @@ function fusionLocal(
     p.formulas.forEach((f) => formulasSet.add(f.trim()));
     p.tiposEjercicio.forEach((t) => tiposSet.add(t.trim()));
     p.conceptosClave.forEach((c) => conceptosSet.add(c.trim()));
+    (p.actividades || []).forEach((a) => actividadesSet.add(a.trim()));
     if (p.resumen) resumenes.push(p.resumen);
   }
 
@@ -292,6 +303,7 @@ function fusionLocal(
     tiposEjercicio: deduplicateSimilar([...tiposSet]),
     resumen: resumenes.join(" "),
     conceptosClave: deduplicateSimilar([...conceptosSet]),
+    actividades: deduplicateSimilar([...actividadesSet]),
   };
 }
 
