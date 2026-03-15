@@ -7,7 +7,9 @@ import {
   startGeneration,
   updateStep,
 } from "./generationStatus";
-import { getRedis } from "./redisClient";
+import { getRedis, getGenerationStatus } from "./redisClient";
+
+const PROPAGATION_LOCK_TTL = 600; // 10 minutes max lock
 
 /**
  * Normaliza el nombre de un tema para consistencia
@@ -88,6 +90,30 @@ async function findExistingTopic(
 export async function propagateClassChanges(classId: number) {
   console.log(`[AutoPropagation] Iniciando propagación para clase ${classId}`);
 
+  // Guard 1: Check if already completed
+  const existingStatus = await getGenerationStatus(classId, "class");
+  if (existingStatus?.status === "done") {
+    console.log(`[AutoPropagation] Clase ${classId} ya fue propagada, omitiendo`);
+    return;
+  }
+
+  // Guard 2: Redis lock to prevent concurrent execution
+  const lockKey = `propagation:lock:${classId}`;
+  const redis = getRedis();
+  const locked = await redis.set(lockKey, "1", "EX", PROPAGATION_LOCK_TTL, "NX");
+  if (!locked) {
+    console.log(`[AutoPropagation] Clase ${classId} ya está siendo propagada (lock activo)`);
+    return;
+  }
+
+  try {
+    return await _doPropagation(classId);
+  } finally {
+    await redis.del(lockKey);
+  }
+}
+
+async function _doPropagation(classId: number) {
   const classLog = await prisma.classLog.findUnique({
     where: { id: classId },
   });
@@ -323,6 +349,7 @@ export async function propagateClassChanges(classId: number) {
   );
 
   // 3. Generar documentación de temas
+  const hayNuevosTemas = nuevos.length > 0;
   const apiKey = process.env.GEMINI_API_KEY;
   for (const topicInfo of topicResults) {
     const stepLabel = `Documentación: ${topicInfo.originalName}`;
@@ -405,11 +432,17 @@ Reglas:
     }
   }
 
-  // 4. Actualizar DAG
-  await updateStep(classId, "Reconstruyendo DAG", "running");
-  await rebuildDAG();
-  await updateStep(classId, "Reconstruyendo DAG", "done");
-  await updateStep(classId, "Auditando DAG", "done");
+  // 4. Actualizar DAG — solo si hay temas nuevos
+  if (hayNuevosTemas) {
+    await updateStep(classId, "Reconstruyendo DAG", "running");
+    await rebuildDAG();
+    await updateStep(classId, "Reconstruyendo DAG", "done");
+    await updateStep(classId, "Auditando DAG", "done");
+  } else {
+    console.log(`[AutoPropagation] Sin temas nuevos — DAG no necesita reconstrucción`);
+    await updateStep(classId, "Reconstruyendo DAG", "done", "sin cambios");
+    await updateStep(classId, "Auditando DAG", "done", "sin cambios");
+  }
 
   // 5. Generar apuntes
   await updateStep(classId, "Generando apuntes", "running");

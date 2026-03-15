@@ -81,7 +81,10 @@ try {
  */
 export async function enqueuePropagation(classId: number): Promise<void> {
   if (queue && ready) {
-    await queue.add("propagate", { classId });
+    // Prevent duplicate jobs for the same classId
+    await queue.add("propagate", { classId }, {
+      jobId: `propagate-${classId}`,
+    });
     console.log(`[JobQueue] Enqueued propagation for class ${classId}`);
   } else {
     // Fallback: direct fire-and-forget
