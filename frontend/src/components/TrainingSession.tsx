@@ -30,7 +30,7 @@ export default function TrainingSession({
   const [socraticHintsUsed, setSocraticHintsUsed] = useState(0);
   const [currentHint, setCurrentHint] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState(0);
-  const [loadingSocratic, setLoadingSocratic] = useState(false);
+  const [loadingSocratic, setLoadingSocratic] = useState(!!initialSession?.config?.socratic);
 
   const current = session.current || 0;
   const exercises = session.exercises || [];
@@ -139,7 +139,7 @@ export default function TrainingSession({
         answer.trim(),
       );
 
-      if (!response.body) {
+      if (!response.ok || !response.body) {
         // Fallback to non-streaming
         const result = await api.tutorAnswer(ex.id, socraticStep, answer.trim());
         setSocraticFeedbackStreaming(false);
@@ -199,9 +199,18 @@ export default function TrainingSession({
               continue;
             }
             if (line.startsWith("data: ")) {
-              const text = line.slice(6);
-              if (text !== "[DONE]") {
-                fullFeedback += text;
+              const raw = line.slice(6);
+              if (raw !== "[DONE]" && raw !== "{}") {
+                try {
+                  const parsed = JSON.parse(raw);
+                  if (parsed.text) {
+                    fullFeedback += parsed.text;
+                  } else {
+                    fullFeedback += raw;
+                  }
+                } catch {
+                  fullFeedback += raw;
+                }
                 setSocraticFeedback(fullFeedback);
               }
             }

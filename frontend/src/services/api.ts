@@ -123,12 +123,16 @@ export const api = {
       body: JSON.stringify({ exerciseId, step, answer }),
     }),
 
-  tutorAnswerStream: (exerciseId: number, step: number, answer: string) =>
-    fetch(`${BASE_URL}/tutor/answer-stream`, {
+  tutorAnswerStream: (exerciseId: number, step: number, answer: string) => {
+    const token = localStorage.getItem("auth_token");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return fetch(`${BASE_URL}/tutor/answer-stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ exerciseId, step, answer }),
-    }),
+    });
+  },
 
   tutorHint: (
     exerciseId: number,
