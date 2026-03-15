@@ -2,7 +2,9 @@ const BASE_URL = "/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("auth_token");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -25,6 +27,10 @@ export const api = {
     return request<any[]>(`/topics${query ? "?" + query : ""}`);
   },
   getTopic: (id: number) => request<any>(`/topics/${id}`),
+  getPrerequisites: (topicId: number) =>
+    request<any>(`/topics/${topicId}/prerequisites`),
+  getTopicsByWindow: (window: string) =>
+    request<any[]>(`/topics/by-window?window=${window}`),
 
   // Formulas
   getFormulas: () => request<any[]>("/formulas"),
@@ -75,21 +81,25 @@ export const api = {
     }),
 
   // Training
-  startTraining: (data: { mode: string; topicId?: number; count?: number }) =>
+  startTraining: (data: any) =>
     request<any>("/training/start", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  saveTraining: (data: {
+  answerTraining: (data: {
     sessionId: string;
-    current: number;
-    answers: any[];
-    results: any[];
-    timeLeft?: number | null;
+    correct: boolean;
+    timeout: boolean;
+    timeMs: number;
   }) =>
-    request<any>("/training/save", {
+    request<any>("/training/answer", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  nextTrainingBatch: (sessionId: string) =>
+    request<any>("/training/next-batch", {
+      method: "POST",
+      body: JSON.stringify({ sessionId }),
     }),
   resumeTraining: (sessionId: string) =>
     request<any>(`/training/resume/${sessionId}`),
