@@ -126,7 +126,7 @@ export default function TrainingConfig({
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-3 max-w-3xl mx-auto">
       {/* Resume prompt */}
       {resumePrompt && (
         <div className="bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -153,15 +153,15 @@ export default function TrainingConfig({
         </div>
       )}
 
-      <h1 className="text-3xl font-bold dark:text-gray-100">
+      <h1 className="text-xl font-bold dark:text-gray-100">
         Configurar Entrenamiento
       </h1>
 
       {/* Topic Selection */}
-      <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-4">
-        <h2 className="text-lg font-semibold dark:text-gray-200">Temas</h2>
+      <section className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Temas</h2>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           {(
             [
               ["manual", "Selección manual"],
@@ -172,7 +172,7 @@ export default function TrainingConfig({
             <button
               key={val}
               onClick={() => setTopicSelection(val)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 topicSelection === val
                   ? "bg-indigo-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -184,7 +184,7 @@ export default function TrainingConfig({
 
         {/* Manual selection */}
         {topicSelection === "manual" && (
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {topics.map((t) => (
               <button
                 key={t.id}
@@ -207,7 +207,7 @@ export default function TrainingConfig({
 
         {/* DAG selection */}
         {topicSelection === "dag" && (
-          <div className="space-y-3 pt-2">
+          <div className="space-y-2 pt-1">
             <select
               value={dagRootTopicId || ""}
               onChange={(e) =>
@@ -249,8 +249,8 @@ export default function TrainingConfig({
 
         {/* Recent classes */}
         {topicSelection === "recent" && (
-          <div className="space-y-3 pt-2">
-            <div className="flex gap-2">
+          <div className="space-y-2 pt-1">
+            <div className="flex gap-1.5">
               {(
                 [
                   ["week", "Última semana"],
@@ -261,7 +261,7 @@ export default function TrainingConfig({
                 <button
                   key={val}
                   onClick={() => setRecentWindow(val)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
                     recentWindow === val
                       ? "bg-indigo-600 text-white"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -290,10 +290,10 @@ export default function TrainingConfig({
       </section>
 
       {/* Pattern */}
-      <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-3">
-        <h2 className="text-lg font-semibold dark:text-gray-200">
+      <section className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Patrón de resolución{" "}
-          <span className="text-sm font-normal text-gray-500">(opcional)</span>
+          <span className="text-xs font-normal">(opcional)</span>
         </h2>
         <div className="flex flex-wrap gap-2">
           {PATTERNS.map((p) => (
@@ -312,9 +312,9 @@ export default function TrainingConfig({
       </section>
 
       {/* Difficulty */}
-      <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-3">
-        <h2 className="text-lg font-semibold dark:text-gray-200">Dificultad</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <section className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 space-y-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Dificultad</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {(
             [
               [
@@ -340,13 +340,13 @@ export default function TrainingConfig({
             <button
               key={val}
               onClick={() => setDifficultyMode(val)}
-              className={`p-4 rounded-lg text-left transition-all border-2 ${
+              className={`p-3 rounded-lg text-left transition-all border-2 ${
                 difficultyMode === val
                   ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
                   : "border-gray-200 dark:border-gray-600 hover:border-gray-300"
               }`}>
-              <p className={`font-semibold ${color}`}>{label}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className={`text-sm font-semibold ${color}`}>{label}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {desc}
               </p>
             </button>
@@ -355,12 +355,12 @@ export default function TrainingConfig({
       </section>
 
       {/* Exercises per topic + timer + socratic */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-3">
-          <h2 className="text-lg font-semibold dark:text-gray-200">
-            Ejercicios por tema
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <section className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Ejercicios/tema
           </h2>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <input
               type="range"
               min="3"
@@ -369,14 +369,14 @@ export default function TrainingConfig({
               onChange={(e) => setExercisesPerTopic(parseInt(e.target.value))}
               className="flex-1 accent-indigo-600"
             />
-            <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 w-8 text-center">
+            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400 w-6 text-center">
               {exercisesPerTopic}
             </span>
           </div>
         </section>
 
-        <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-3">
-          <h2 className="text-lg font-semibold dark:text-gray-200">
+        <section className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 space-y-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
             Contrarreloj
           </h2>
           <div className="flex items-center gap-3">
@@ -408,13 +408,13 @@ export default function TrainingConfig({
         </section>
 
         <section
-          className={`bg-white dark:bg-gray-800 rounded-xl p-6 border space-y-3 transition-all ${
+          className={`bg-white dark:bg-gray-800 rounded-lg p-3 border space-y-2 transition-all ${
             socratic
               ? "border-purple-400 dark:border-purple-600 ring-1 ring-purple-300 dark:ring-purple-700"
               : "border-gray-200 dark:border-gray-700"
           }`}>
-          <h2 className="text-lg font-semibold dark:text-gray-200">
-            Modo Socrático
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Socrático
           </h2>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -438,7 +438,7 @@ export default function TrainingConfig({
       <button
         onClick={handleStart}
         disabled={!canStart()}
-        className={`w-full py-4 rounded-xl text-lg font-bold transition-all ${
+        className={`w-full py-3 rounded-lg text-base font-bold transition-all ${
           canStart()
             ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 hover:shadow-lg"
             : "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed"
