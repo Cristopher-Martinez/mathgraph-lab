@@ -97,21 +97,30 @@ router.post("/validate", async (req: Request, res: Response) => {
           model: "gemini-2.5-flash-lite",
         });
 
-        const prompt = `Eres un validador de respuestas matemáticas. Compara la respuesta del estudiante con la respuesta esperada y determina si son semánticamente equivalentes.
+        const prompt = `Eres un tutor matemático amigable validando la respuesta de un estudiante.
 
 Pregunta: ${exercisePrompt || "(no proporcionada)"}
 Respuesta esperada: ${expectedAnswer}
 Respuesta del estudiante: ${userAnswer}
 
-Reglas:
+Reglas de validación:
 - Ignora diferencias de formato, espacios, mayúsculas/minúsculas.
 - "entero" y "Enteros" y "Z" son equivalentes. "natural" y "Naturales" y "N" son equivalentes. Igual para Q, R, C.
 - Acepta variaciones válidas: "x = 5" vs "5", "-4 es entero" vs "Enteros", etc.
 - Si el resultado numérico es correcto pero la clasificación o conjunto es incorrecto, marca como incorrecto.
 - Sé flexible con la forma pero estricto con el contenido matemático.
 
+Reglas de feedback:
+- Si es CORRECTO: Felicita brevemente al estudiante (ej: "¡Excelente!", "¡Muy bien!", "¡Correcto!").
+- Si es INCORRECTO: 
+  * NO reveles la respuesta correcta
+  * NO menciones la respuesta esperada directamente
+  * Sé motivador: "No es correcto, pero sigue intentando", "Revisa tu razonamiento", "Vas por buen camino, pero verifica..."
+  * Da una pequeña PISTA sobre qué revisar (sin dar la solución)
+  * Máximo 2 oraciones
+
 Responde SOLO en este formato JSON (sin markdown, sin backticks):
-{"correct": true/false, "feedback": "explicación breve en español de por qué es correcto o incorrecto"}`;
+{"correct": true/false, "feedback": "mensaje breve y motivador para el estudiante"}`;
 
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();
@@ -136,7 +145,7 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
         const correct = norm(userAnswer) === norm(expectedAnswer);
         res.json({
           correct,
-          feedback: correct ? "¡Correcto!" : `Esperado: ${expectedAnswer}`,
+          feedback: correct ? "¡Correcto!" : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
         });
       }
     } else {
@@ -145,7 +154,7 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
       const correct = norm(userAnswer) === norm(expectedAnswer);
       res.json({
         correct,
-        feedback: correct ? "¡Correcto!" : `Esperado: ${expectedAnswer}`,
+        feedback: correct ? "¡Correcto!" : "No es correcto. Revisa tu razonamiento e intenta nuevamente.",
       });
     }
   } catch (err) {
