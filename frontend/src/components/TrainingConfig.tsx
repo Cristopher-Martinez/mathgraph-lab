@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { api } from "../services/api";
 
 interface TrainingConfig {
-  topicSelection: "manual" | "dag" | "recent";
+  topicSelection: "manual" | "dag" | "recent" | "ai";
   topicIds?: number[];
   dagRootTopicId?: number;
   recentWindow?: "week" | "month" | "semester";
+  aiPrompt?: string;
   pattern?: string;
   difficultyMode: "easy" | "mixed" | "progressive";
   exercisesPerTopic: number;
@@ -44,7 +45,7 @@ export default function TrainingConfig({
 
   // Config state
   const [topicSelection, setTopicSelection] = useState<
-    "manual" | "dag" | "recent"
+    "manual" | "dag" | "recent" | "ai"
   >("manual");
   const [selectedTopicIds, setSelectedTopicIds] = useState<number[]>([]);
   const [dagRootTopicId, setDagRootTopicId] = useState<number | null>(null);
@@ -61,6 +62,13 @@ export default function TrainingConfig({
   const [timed, setTimed] = useState(false);
   const [timePerExercise, setTimePerExercise] = useState(90);
   const [socratic, setSocratic] = useState(false);
+
+  // AI mode state
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [presets, setPresets] = useState<any[]>([]);
+  const [presetsLoaded, setPresetsLoaded] = useState(false);
 
   useEffect(() => {
     api
@@ -90,6 +98,72 @@ export default function TrainingConfig({
     }
   }, [recentWindow, topicSelection]);
 
+  // Load presets when AI tab is selected
+  useEffect(() => {
+    if (topicSelection === "ai" && !presetsLoaded) {
+      api
+        .getTrainingPresets()
+        .then((p) => { setPresets(p); setPresetsLoaded(true); })
+        .catch(() => setPresetsLoaded(true));
+    }
+  }, [topicSelection, presetsLoaded]);
+
+  const generateAIConfig = async () => {
+    if (!aiPrompt.trim() || aiLoading) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const result = await api.getAITrainingConfig(aiPrompt);
+      setAiResult(result);
+      if (result.exercisesPerTopic) setExercisesPerTopic(result.exercisesPerTopic);
+      if (result.difficultyMode) setDifficultyMode(result.difficultyMode);
+      if (result.pattern) setPattern(result.pattern);
+      if (result.socratic) setSocratic(result.socratic);
+    } catch (err) {
+      console.error("Error AI config:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const saveAsPreset = async () => {
+    if (!aiResult) return;
+    const label = aiResult.label || aiPrompt.slice(0, 30);
+    try {
+      const preset = await api.saveTrainingPreset(label, {
+        topicIds: aiResult.topicIds,
+        exercisesPerTopic,
+        difficultyMode,
+        pattern,
+        socratic,
+        prompt: aiPrompt,
+      });
+      setPresets((prev) => [preset, ...prev]);
+    } catch (err) {
+      console.error("Error saving preset:", err);
+    }
+  };
+
+  const loadPreset = (preset: any) => {
+    const c = preset.config;
+    setSelectedTopicIds(c.topicIds || []);
+    setExercisesPerTopic(c.exercisesPerTopic || 5);
+    setDifficultyMode(c.difficultyMode || "mixed");
+    setPattern(c.pattern || "");
+    setSocratic(!!c.socratic);
+    if (c.prompt) setAiPrompt(c.prompt);
+    setAiResult({ topicIds: c.topicIds || [], topics: [], label: preset.label });
+  };
+
+  const deletePreset = async (id: string) => {
+    try {
+      await api.deleteTrainingPreset(id);
+      setPresets((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Error deleting preset:", err);
+    }
+  };
+
   const toggleTopic = (id: number) => {
     setSelectedTopicIds((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
@@ -100,6 +174,7 @@ export default function TrainingConfig({
     if (topicSelection === "manual") return selectedTopicIds.length > 0;
     if (topicSelection === "dag") return !!dagRootTopicId;
     if (topicSelection === "recent") return recentTopics.length > 0;
+    if (topicSelection === "ai") return aiResult && aiResult.topicIds.length > 0;
     return false;
   };
 
@@ -116,6 +191,10 @@ export default function TrainingConfig({
     if (topicSelection === "manual") config.topicIds = selectedTopicIds;
     if (topicSelection === "dag") config.dagRootTopicId = dagRootTopicId!;
     if (topicSelection === "recent") config.recentWindow = recentWindow;
+    if (topicSelection === "ai" && aiResult) {
+      config.topicIds = aiResult.topicIds;
+      config.aiPrompt = aiPrompt;
+    }
     onStart(config);
   };
 
@@ -167,11 +246,12 @@ export default function TrainingConfig({
               ["manual", "Selección manual"],
               ["dag", "Desde el DAG"],
               ["recent", "Clases recientes"],
+              ["ai", "🤖 IA personalizada"],
             ] as const
           ).map(([val, label]) => (
             <button
               key={val}
-              onClick={() => setTopicSelection(val)}
+              onClick={() => setTopicSelection(val as any)}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 topicSelection === val
                   ? "bg-indigo-600 text-white"
@@ -284,6 +364,84 @@ export default function TrainingConfig({
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 No hay clases registradas en este periodo.
               </p>
+            )}
+          </div>
+        )}
+
+        {/* AI mode */}
+        {topicSelection === "ai" && (
+          <div className="space-y-3 pt-1">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && generateAIConfig()}
+                placeholder="Ej: Quiero practicar ecuaciones cuadráticas y factorización nivel difícil..."
+                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+              />
+              <button
+                onClick={generateAIConfig}
+                disabled={!aiPrompt.trim() || aiLoading}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium whitespace-nowrap">
+                {aiLoading ? "⏳" : "🤖 Generar"}
+              </button>
+            </div>
+
+            {aiResult && (
+              <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
+                    {aiResult.label || "Configuración sugerida"}
+                  </p>
+                  <button
+                    onClick={saveAsPreset}
+                    className="text-xs px-2 py-1 bg-indigo-200 dark:bg-indigo-800 text-indigo-700 dark:text-indigo-200 rounded hover:bg-indigo-300 dark:hover:bg-indigo-700 transition-colors">
+                    💾 Guardar
+                  </button>
+                </div>
+                {aiResult.reasoning && (
+                  <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                    {aiResult.reasoning}
+                  </p>
+                )}
+                {aiResult.topics?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {aiResult.topics.map((t: any) => (
+                      <span
+                        key={t.id}
+                        className="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded">
+                        {t.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Saved presets */}
+            {presets.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  Guardados
+                </p>
+                {presets.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg text-sm">
+                    <button
+                      onClick={() => loadPreset(preset)}
+                      className="flex-1 text-left text-gray-800 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                      {preset.label}
+                    </button>
+                    <button
+                      onClick={() => deletePreset(preset.id)}
+                      className="text-gray-400 hover:text-red-500 text-xs ml-2 transition-colors">
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}

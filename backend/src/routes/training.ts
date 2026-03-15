@@ -840,4 +840,170 @@ router.post("/finish", async (req: Request, res: Response) => {
   }
 });
 
+// ─── AI Training Config ───
+
+const PRESET_KEY = (user: string) => `training:presets:${user}`;
+const PRESET_TTL = 365 * 24 * 3600; // 1 year
+
+/**
+ * POST /training/ai-config
+ * Takes a natural language description and returns a training configuration.
+ */
+router.post("/ai-config", async (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== "string") {
+      res.status(400).json({ error: "prompt es requerido" });
+      return;
+    }
+
+    // Get all available topics
+    const allTopics = await prisma.topic.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(503).json({ error: "AI no disponible" });
+      return;
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+    });
+
+    const topicList = allTopics.map((t) => `- id:${t.id} "${t.name}"`).join("\n");
+
+    const aiPrompt = `Eres un asistente educativo. El estudiante quiere configurar una sesión de entrenamiento de matemáticas.
+
+Temas disponibles en la base de datos:
+${topicList}
+
+Solicitud del estudiante: "${prompt}"
+
+Genera una configuración de entrenamiento basada en su solicitud. Responde SOLO con JSON:
+{
+  "topicIds": [lista de IDs de temas relevantes de los disponibles arriba],
+  "exercisesPerTopic": número entre 3 y 10,
+  "difficultyMode": "easy" | "mixed" | "progressive",
+  "pattern": "" o un patrón específico si lo menciona,
+  "socratic": true si el estudiante quiere guía paso a paso,
+  "label": "nombre corto descriptivo para esta configuración (máx 30 chars)",
+  "reasoning": "explicación breve de por qué elegiste estos temas y configuración"
+}
+
+Si el estudiante pide temas que no existen en la BD, elige los más cercanos disponibles. Si no hay temas relevantes, devuelve topicIds vacío.`;
+
+    const result = await model.generateContent(aiPrompt);
+    const text = result.response.text().trim();
+    const parsed = parseGeminiJSON(text);
+
+    if (!parsed || !Array.isArray(parsed.topicIds)) {
+      res.status(422).json({ error: "No se pudo interpretar la solicitud" });
+      return;
+    }
+
+    // Validate topic IDs exist
+    const validIds = allTopics.map((t) => t.id);
+    const filteredIds = parsed.topicIds.filter((id: number) => validIds.includes(id));
+    const selectedTopics = allTopics.filter((t) => filteredIds.includes(t.id));
+
+    res.json({
+      topicIds: filteredIds,
+      topics: selectedTopics,
+      exercisesPerTopic: Math.min(10, Math.max(3, parsed.exercisesPerTopic || 5)),
+      difficultyMode: ["easy", "mixed", "progressive"].includes(parsed.difficultyMode)
+        ? parsed.difficultyMode
+        : "mixed",
+      pattern: parsed.pattern || "",
+      socratic: !!parsed.socratic,
+      label: parsed.label || prompt.slice(0, 30),
+      reasoning: parsed.reasoning || "",
+    });
+  } catch (err: any) {
+    console.error("[Training] AI config error:", err.message);
+    res.status(500).json({ error: "Error generando configuración con IA" });
+  }
+});
+
+/**
+ * GET /training/presets
+ * Get saved training presets for the user.
+ */
+router.get("/presets", async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user?.username || "default";
+    const redis = getRedis();
+    const raw = await redis.get(PRESET_KEY(username));
+    res.json(raw ? JSON.parse(raw) : []);
+  } catch (err: any) {
+    console.error("[Training] Presets fetch error:", err.message);
+    res.json([]);
+  }
+});
+
+/**
+ * POST /training/presets
+ * Save a new training preset.
+ */
+router.post("/presets", async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user?.username || "default";
+    const { label, config } = req.body;
+    if (!label || !config) {
+      res.status(400).json({ error: "label y config son requeridos" });
+      return;
+    }
+
+    const redis = getRedis();
+    const raw = await redis.get(PRESET_KEY(username));
+    const presets = raw ? JSON.parse(raw) : [];
+
+    const preset = {
+      id: randomUUID(),
+      label,
+      config,
+      createdAt: new Date().toISOString(),
+    };
+
+    presets.unshift(preset);
+    // Keep max 20 presets
+    if (presets.length > 20) presets.length = 20;
+
+    await redis.setex(PRESET_KEY(username), PRESET_TTL, JSON.stringify(presets));
+    res.json(preset);
+  } catch (err: any) {
+    console.error("[Training] Preset save error:", err.message);
+    res.status(500).json({ error: "Error guardando preset" });
+  }
+});
+
+/**
+ * DELETE /training/presets/:id
+ * Delete a saved preset.
+ */
+router.delete("/presets/:id", async (req: Request, res: Response) => {
+  try {
+    const username = (req as any).user?.username || "default";
+    const { id } = req.params;
+
+    const redis = getRedis();
+    const raw = await redis.get(PRESET_KEY(username));
+    if (!raw) {
+      res.json({ deleted: false });
+      return;
+    }
+
+    const presets = JSON.parse(raw).filter((p: any) => p.id !== id);
+    await redis.setex(PRESET_KEY(username), PRESET_TTL, JSON.stringify(presets));
+    res.json({ deleted: true });
+  } catch (err: any) {
+    console.error("[Training] Preset delete error:", err.message);
+    res.status(500).json({ error: "Error eliminando preset" });
+  }
+});
+
 export default router;

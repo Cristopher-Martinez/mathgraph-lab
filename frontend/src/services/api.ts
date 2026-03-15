@@ -118,6 +118,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ sessionId }),
     }),
+  getAITrainingConfig: (prompt: string) =>
+    request<any>("/training/ai-config", {
+      method: "POST",
+      body: JSON.stringify({ prompt }),
+    }),
+  getTrainingPresets: () => request<any[]>("/training/presets"),
+  saveTrainingPreset: (label: string, config: any) =>
+    request<any>("/training/presets", {
+      method: "POST",
+      body: JSON.stringify({ label, config }),
+    }),
+  deleteTrainingPreset: (id: string) =>
+    request<any>(`/training/presets/${id}`, { method: "DELETE" }),
 
   // Tutor Socrático
   tutorStart: (exerciseId: number) =>
