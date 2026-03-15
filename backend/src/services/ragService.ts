@@ -97,7 +97,7 @@ ${cleaned.slice(0, 30000)}`;
     const sanitized = result.response.text().trim();
 
     if (sanitized.length > 100) {
-      await setCached(cKey, sanitized, TTL.ANALYSIS);
+      await setCached(cKey, sanitized, TTL.TRANSCRIPT);
       console.log(
         `[RAG] Transcripción sanitizada por AI: ${cleaned.length} → ${sanitized.length} chars`,
       );
