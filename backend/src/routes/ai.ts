@@ -18,8 +18,8 @@ const aiLimiter = rateLimit({
   }),
 });
 
-// Exercise tips: DB read first (no rate limit needed), only Gemini if missing
-router.post("/exercise-tips", async (req: Request, res: Response) => {
+// AI explain: step-by-step problem explanation
+router.post("/explain", async (req: Request, res: Response) => {
   try {
     const { problem } = req.body;
     if (!problem || typeof problem !== "string") {
