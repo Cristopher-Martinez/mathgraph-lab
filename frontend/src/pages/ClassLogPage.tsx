@@ -995,7 +995,7 @@ function DetalleClase({
   );
 
   const [detailTab, setDetailTab] = useState<
-    "resumen" | "formulas" | "ejercicios" | "transcripcion" | "imagenes"
+    "resumen" | "formulas" | "ejercicios" | "actividades" | "transcripcion" | "imagenes"
   >("resumen");
 
   // Build available tabs dynamically
@@ -1005,6 +1005,8 @@ function DetalleClase({
   if (clase.formulas?.length > 0)
     tabs.push({ key: "formulas", label: `📐 Fórmulas (${clase.formulas.length})` });
   tabs.push({ key: "ejercicios", label: `✏️ Ejercicios (${ejercicios.length})` });
+  if (clase.actividades?.length > 0)
+    tabs.push({ key: "actividades", label: `📌 Actividades (${clase.actividades.length})` });
   if (clase.transcript)
     tabs.push({ key: "transcripcion", label: "📝 Transcripción" });
   if (clase.imagenes?.length > 0)
@@ -1228,6 +1230,22 @@ function DetalleClase({
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Actividades tab */}
+          {detailTab === "actividades" && (
+            <div className="space-y-3">
+              {(clase.actividades || []).map((actividad: string, i: number) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-lg">
+                  <span className="text-lg mt-0.5">📌</span>
+                  <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+                    {actividad}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
 
