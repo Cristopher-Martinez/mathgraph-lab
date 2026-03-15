@@ -25,3 +25,5 @@
 {"tool":"run_in_terminal","text":"TypeScript type-check the frontend to verify no compilation errors","ts":1773603380268}
 {"tool":"run_in_terminal","text":"TypeScript type-check the frontend","ts":1773603390280}
 {"tool":"run_in_terminal","text":"Count lines of all affected files to verify they're within the 400-line limit","ts":1773603398149}
+{"tool":"run_in_terminal","text":"Stage all changes and check status","ts":1773603411460}
+{"tool":"run_in_terminal","text":"Commit the shared component refactoring","ts":1773603454664}

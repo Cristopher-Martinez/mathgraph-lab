@@ -73,6 +73,8 @@ export default function ApuntesPage() {
   const [filterClass, setFilterClass] = useState<number | "todas">("todas");
   const [filterCategoria, setFilterCategoria] = useState<string>("todas");
   const [expandedClass, setExpandedClass] = useState<number | null>(null);
+  const [apuntesPage, setApuntesPage] = useState(0);
+  const APUNTES_PER_PAGE = 4;
 
   useEffect(() => {
     loadAll();
@@ -202,50 +204,24 @@ export default function ApuntesPage() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats - inline compact */}
       {!loading && notes.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-              {totalApuntes}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Apuntes totales
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {notes.length}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Clases con apuntes
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-              {notes.reduce(
-                (s, cn) =>
-                  s +
-                  cn.apuntes.filter((a) => a.categoria === "consejo").length,
-                0,
-              )}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Consejos</p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {notes.reduce(
-                (s, cn) =>
-                  s +
-                  cn.apuntes.filter((a) => a.categoria === "error_comun")
-                    .length,
-                0,
-              )}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Errores comunes
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+            {totalApuntes} apuntes
+          </span>
+          <span className="text-gray-400">•</span>
+          <span className="text-gray-600 dark:text-gray-400">
+            {notes.length} clases
+          </span>
+          <span className="text-gray-400">•</span>
+          <span className="text-yellow-600 dark:text-yellow-400">
+            💡 {notes.reduce((s, cn) => s + cn.apuntes.filter((a) => a.categoria === "consejo").length, 0)} consejos
+          </span>
+          <span className="text-gray-400">•</span>
+          <span className="text-red-600 dark:text-red-400">
+            ⚠️ {notes.reduce((s, cn) => s + cn.apuntes.filter((a) => a.categoria === "error_comun").length, 0)} errores comunes
+          </span>
         </div>
       )}
 
@@ -324,11 +300,11 @@ export default function ApuntesPage() {
             className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             {/* Class header */}
             <button
-              onClick={() =>
-                setExpandedClass(
-                  expandedClass === cn.classId ? null : cn.classId,
-                )
-              }
+              onClick={() => {
+                const next = expandedClass === cn.classId ? null : cn.classId;
+                setExpandedClass(next);
+                setApuntesPage(0);
+              }}
               className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
               <div className="text-left">
                 <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -383,38 +359,69 @@ export default function ApuntesPage() {
               </div>
             </button>
 
-            {/* Apuntes list */}
+            {/* Apuntes list — paginated */}
             {expandedClass === cn.classId && (
-              <div className="px-5 pb-5 space-y-3">
-                {cn.apuntes.map((apunte, idx) => {
-                  const config =
-                    CATEGORIA_CONFIG[apunte.categoria] ||
-                    CATEGORIA_CONFIG.observacion;
-                  return (
-                    <div
-                      key={apunte.id ?? idx}
-                      className={`rounded-lg border p-4 ${config.bg}`}>
-                      <div className="flex items-start gap-3">
-                        <span className="text-lg mt-0.5">{config.icon}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3
-                              className={`font-semibold text-sm ${config.color}`}>
-                              {apunte.titulo}
-                            </h3>
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 ${config.color}`}>
-                              {config.label}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                            <MarkdownLatex content={apunte.contenido} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+              <div className="px-5 pb-5 space-y-2">
+                {(() => {
+                  const totalApuntesPages = Math.ceil(cn.apuntes.length / APUNTES_PER_PAGE);
+                  const paginatedApuntes = cn.apuntes.slice(
+                    apuntesPage * APUNTES_PER_PAGE,
+                    (apuntesPage + 1) * APUNTES_PER_PAGE,
                   );
-                })}
+
+                  return (
+                    <>
+                      {paginatedApuntes.map((apunte, idx) => {
+                        const config =
+                          CATEGORIA_CONFIG[apunte.categoria] ||
+                          CATEGORIA_CONFIG.observacion;
+                        return (
+                          <details
+                            key={apunte.id ?? apuntesPage * APUNTES_PER_PAGE + idx}
+                            className={`rounded-lg border ${config.bg} group`}
+                            open={paginatedApuntes.length === 1}>
+                            <summary className="px-4 py-2.5 cursor-pointer select-none flex items-center gap-2 hover:opacity-80 transition-opacity">
+                              <span className="text-base">{config.icon}</span>
+                              <h3 className={`font-semibold text-sm flex-1 ${config.color}`}>
+                                {apunte.titulo}
+                              </h3>
+                              <span className={`text-xs px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 ${config.color}`}>
+                                {config.label}
+                              </span>
+                              <span className="text-gray-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                            </summary>
+                            <div className="px-4 pb-3 pt-1 border-t border-inherit">
+                              <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                <MarkdownLatex content={apunte.contenido} />
+                              </div>
+                            </div>
+                          </details>
+                        );
+                      })}
+
+                      {/* Pagination controls */}
+                      {totalApuntesPages > 1 && (
+                        <div className="flex items-center justify-between pt-2">
+                          <button
+                            onClick={() => setApuntesPage((p) => Math.max(0, p - 1))}
+                            disabled={apuntesPage === 0}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                            ← Anterior
+                          </button>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {apuntesPage + 1} / {totalApuntesPages} • {cn.apuntes.length} apuntes
+                          </span>
+                          <button
+                            onClick={() => setApuntesPage((p) => Math.min(totalApuntesPages - 1, p + 1))}
+                            disabled={apuntesPage >= totalApuntesPages - 1}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                            Siguiente →
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
