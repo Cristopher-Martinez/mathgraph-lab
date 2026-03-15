@@ -31,6 +31,7 @@ interface TrainingMetrics {
   errorsByTopic: Record<string, number>;
   errorsByDifficulty: Record<string, number>;
   hintsUsed: number;
+  socraticScore: number;
   difficultyProgression: string[];
   timeouts: number;
   _totalTimeMs: number;
@@ -216,6 +217,7 @@ function initMetrics(): TrainingMetrics {
     errorsByTopic: {},
     errorsByDifficulty: {},
     hintsUsed: 0,
+    socraticScore: 0,
     difficultyProgression: [],
     timeouts: 0,
     _totalTimeMs: 0,
@@ -397,7 +399,7 @@ router.post("/start", async (req: Request, res: Response) => {
 // Unified answer endpoint — records response, adapts difficulty, accumulates metrics
 router.post("/answer", async (req: Request, res: Response) => {
   try {
-    const { sessionId, correct, timeMs, timeout, hintsUsed: reqHints } = req.body;
+    const { sessionId, correct, timeMs, timeout, hintsUsed: reqHints, score: reqScore } = req.body;
     if (!sessionId) {
       res.status(400).json({ error: "sessionId required" });
       return;
@@ -428,6 +430,7 @@ router.post("/answer", async (req: Request, res: Response) => {
     if (isCorrect) session.metrics.correctCount++;
     if (timeout) session.metrics.timeouts++;
     if (reqHints) session.metrics.hintsUsed += reqHints;
+    if (reqScore) session.metrics.socraticScore += reqScore;
     session.metrics.accuracy =
       session.metrics.correctCount / session.metrics.totalExercises;
     session.metrics.difficultyProgression.push(session.currentDifficulty);

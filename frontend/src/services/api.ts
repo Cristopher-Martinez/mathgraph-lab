@@ -92,6 +92,7 @@ export const api = {
     timeout: boolean;
     timeMs: number;
     hintsUsed?: number;
+    score?: number;
   }) =>
     request<any>("/training/answer", {
       method: "POST",
