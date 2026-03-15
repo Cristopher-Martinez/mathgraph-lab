@@ -1224,12 +1224,24 @@ function DetalleClase({
 
       {/* Transcripción original */}
       <details className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-        <summary className="text-lg font-semibold text-gray-900 dark:text-white cursor-pointer">
-          📝 Transcripción Original
+        <summary className="text-lg font-semibold text-gray-900 dark:text-white cursor-pointer flex items-center justify-between">
+          <span>📝 Transcripción Original</span>
+          {clase.transcript && (
+            <span className="text-xs font-normal text-gray-400 dark:text-gray-500 ml-2">
+              {clase.transcript.split(/\s+/).filter(Boolean).length.toLocaleString()} palabras · {clase.transcript.length.toLocaleString()} caracteres
+            </span>
+          )}
         </summary>
-        <pre className="mt-3 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-          {clase.transcript}
-        </pre>
+        <div className="mt-3 max-h-[500px] overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">
+          {(clase.transcript || "")
+            .split(/\n\s*\n/)
+            .filter((p: string) => p.trim())
+            .map((paragraph: string, i: number) => (
+              <p key={i} className="whitespace-pre-wrap">
+                {paragraph.trim()}
+              </p>
+            ))}
+        </div>
       </details>
     </div>
   );
