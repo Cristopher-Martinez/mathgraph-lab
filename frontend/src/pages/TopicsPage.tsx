@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import IntervalVisualizer from "../components/IntervalVisualizer";
 import Latex from "../components/Latex";
 import MarkdownLatex from "../components/MarkdownLatex";
+import MathAnswerInput from "../components/MathAnswerInput";
 import SocraticTutor from "../components/SocraticTutor";
 import TopicCard from "../components/TopicCard";
 import { api } from "../services/api";
@@ -226,13 +227,11 @@ export default function TopicsPage() {
           </div>
 
           <div className="flex gap-2">
-            <input
-              type="text"
+            <MathAnswerInput
               value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              placeholder="Escribe tu respuesta..."
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              onChange={setAnswer}
+              onSubmit={handleSubmit}
+              expectedAnswer={currentEx.steps}
             />
             <button
               onClick={handleSubmit}
