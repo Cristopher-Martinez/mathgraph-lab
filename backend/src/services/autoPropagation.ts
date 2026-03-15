@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 import { generarEjercicios } from "./exerciseGeneration";
 import {
   completeGeneration,
@@ -368,10 +369,9 @@ Reglas:
 
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const parsed = parseGeminiJSON(text);
 
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed) {
         await prisma.topicDoc.create({
           data: {
             topicId: topicInfo.id,
@@ -546,7 +546,7 @@ Responde SOLO con JSON válido:
 
   if (!jsonStr) return [];
 
-  const parsed = JSON.parse(jsonStr);
+  const parsed = parseGeminiJSON(jsonStr);
   return (parsed.dependencias || []).filter(
     (d: any) => typeof d.padre === "string" && typeof d.hijo === "string",
   );
@@ -778,7 +778,7 @@ Reglas:
 
   if (!jsonStr) throw new Error("IA no retornó JSON");
 
-  const parsed = JSON.parse(jsonStr);
+  const parsed = parseGeminiJSON(jsonStr);
   const conexiones: { padre: string; hijo: string }[] = parsed.conexiones || [];
 
   let connected = 0;
@@ -932,7 +932,7 @@ Reglas:
 
   if (!jsonStr) throw new Error("IA no retornó JSON válido");
 
-  const parsed = JSON.parse(jsonStr);
+  const parsed = parseGeminiJSON(jsonStr);
   const nuevosTemas: {
     nombre: string;
     dependesDe: string[];

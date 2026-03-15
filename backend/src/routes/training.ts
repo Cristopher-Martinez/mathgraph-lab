@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "crypto";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
 import { getRedis } from "../services/redisClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
 const SESSION_TTL = 24 * 3600; // 24h
@@ -293,7 +294,7 @@ IMPORTANTE: Responde ÚNICAMENTE el JSON, sin texto adicional ni bloques de cód
   if (!jsonStr) return [];
 
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed = parseGeminiJSON(jsonStr);
     return (parsed.ejercicios || []).filter(
       (e: any) =>
         typeof e.pregunta === "string" &&

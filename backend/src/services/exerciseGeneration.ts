@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 export interface GeneratedExercise {
   pregunta: string;
@@ -132,7 +133,7 @@ function parseExercisesFromText(texto: string): GeneratedExercise[] {
 
   // Intento 1: Parse directo
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed = parseGeminiJSON(jsonStr);
     const ejercicios = (parsed.ejercicios || [])
       .map((e: any) => ({
         pregunta: e.pregunta || "",
@@ -158,7 +159,7 @@ function parseExercisesFromText(texto: string): GeneratedExercise[] {
     const rescatados: GeneratedExercise[] = [];
     for (const m of matches) {
       try {
-        const e = JSON.parse(m);
+        const e = parseGeminiJSON(m);
         const ej: GeneratedExercise = {
           pregunta: e.pregunta || "",
           solucion: e.solucion || "",

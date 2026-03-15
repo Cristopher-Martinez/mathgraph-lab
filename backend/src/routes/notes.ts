@@ -1,72 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Router } from "express";
 import prisma from "../prismaClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
-
-/** Helper: parsear JSON de respuesta Gemini (limpia code blocks y escapes LaTeX) */
-function parseGeminiJSON(text: string): any {
-  const cleaned = text
-    .replace(/```(?:json)?\s*/g, "")
-    .replace(/```\s*/g, "")
-    .trim();
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
-
-  // Primer intento: parse directo
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch {}
-
-  // Segundo intento: reparar escapes LaTeX dentro de strings JSON
-  // Recorrer el JSON y solo dentro de strings (entre comillas), escapar backslashes inválidos
-  let raw = jsonMatch[0];
-  let result = "";
-  let inString = false;
-  for (let i = 0; i < raw.length; i++) {
-    const ch = raw[i];
-    if (ch === '"' && (i === 0 || raw[i - 1] !== "\\")) {
-      inString = !inString;
-      result += ch;
-    } else if (inString && ch === "\\" && i + 1 < raw.length) {
-      const next = raw[i + 1];
-      // Check if this is a LaTeX command (backslash + letter(s))
-      // e.g. \frac, \sqrt, \beta — NOT a JSON escape like \n, \t, \"
-      if (/[a-zA-Z]/.test(next)) {
-        // Peek ahead: if followed by 2+ letters, it's LaTeX (e.g. \frac, \cdot)
-        // Single-letter \n, \t, \r, \b, \f are JSON escapes ONLY if truly standalone
-        let cmdLen = 0;
-        for (let j = i + 1; j < raw.length && /[a-zA-Z]/.test(raw[j]); j++) cmdLen++;
-        if (cmdLen >= 2) {
-          // Multi-letter: definitely LaTeX → double-escape
-          result += "\\\\";
-        } else if ("bfnrt".includes(next)) {
-          // Single valid JSON escape char → keep as-is
-          result += ch;
-        } else {
-          // Single letter but not a JSON escape (e.g. \x raw) → double-escape
-          result += "\\\\";
-        }
-      } else if ('"\\\/'.includes(next) || next === "u") {
-        // Standard JSON escapes: \", \\, \/, \uXXXX
-        result += ch;
-      } else {
-        // Unknown escape → double-escape for safety
-        result += "\\\\";
-      }
-    } else {
-      result += ch;
-    }
-  }
-
-  try {
-    return JSON.parse(result);
-  } catch (e) {
-    // Último intento: regex — escape any backslash not followed by standard JSON escape
-    const fixed = jsonMatch[0].replace(/\\([^"\\/bfnrtu])/g, "\\\\$1");
-    return JSON.parse(fixed);
-  }
-}
 
 /** Helper: generar apuntes con Gemini para una clase */
 export async function generateNotesForClass(

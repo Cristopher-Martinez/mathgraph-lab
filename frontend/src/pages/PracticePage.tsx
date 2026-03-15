@@ -4,7 +4,10 @@ import { ExerciseListView } from "../components/ExerciseListView";
 import { ExerciseSolvingView } from "../components/ExerciseSolvingView";
 import SocraticTutor from "../components/SocraticTutor";
 import { api } from "../services/api";
-import { DIFF_CONFIG, DIFFICULTY_COLOR_CLASSES } from "../utils/exerciseConstants";
+import {
+  DIFF_CONFIG,
+  DIFFICULTY_COLOR_CLASSES,
+} from "../utils/exerciseConstants";
 
 type ViewMode =
   | "categories"
@@ -330,7 +333,8 @@ export default function PracticePage() {
   // ─── RENDER: Exercises List (Paginated) ──────────
   if (view === "exercises") {
     const diffConfig = DIFF_CONFIG.find((d) => d.level === filter.difficulty)!;
-    const topicId = filteredExercises[0]?.topicId || filteredExercises[0]?.topic?.id;
+    const topicId =
+      filteredExercises[0]?.topicId || filteredExercises[0]?.topic?.id;
 
     return (
       <ExerciseListView

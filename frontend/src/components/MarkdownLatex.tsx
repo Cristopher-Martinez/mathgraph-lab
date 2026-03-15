@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
 import katex from "katex";
+import { useEffect, useRef } from "react";
 
 interface MarkdownLatexProps {
   content: string;
@@ -18,8 +18,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
     // \frac in JSON → \f (form feed 0x0C) + "rac" → recover to \frac
     // \beta in JSON → \b (backspace 0x08) + "eta" → recover to \beta
     const sanitized = content
-      .replace(/\x0C/g, "\\f")   // form feed → \f (recovers \frac, \flat, etc.)
-      .replace(/\x08/g, "\\b");  // backspace → \b (recovers \beta, \bar, etc.)
+      .replace(/\x0C/g, "\\f") // form feed → \f (recovers \frac, \flat, etc.)
+      .replace(/\x08/g, "\\b"); // backspace → \b (recovers \beta, \bar, etc.)
 
     // Split content by lines to handle markdown structure
     const lines = sanitized.split("\n");
@@ -41,7 +41,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
       if (trimmedLine.startsWith("###")) {
         flushParagraph();
         const h3 = document.createElement("h3");
-        h3.className = "text-lg font-bold mt-6 mb-3 text-gray-900 dark:text-gray-100";
+        h3.className =
+          "text-lg font-bold mt-6 mb-3 text-gray-900 dark:text-gray-100";
         renderLineWithLatex(trimmedLine.slice(3).trim(), h3);
         container.appendChild(h3);
         return;
@@ -50,7 +51,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
       if (trimmedLine.startsWith("##")) {
         flushParagraph();
         const h2 = document.createElement("h2");
-        h2.className = "text-xl font-bold mt-6 mb-3 text-gray-900 dark:text-gray-100";
+        h2.className =
+          "text-xl font-bold mt-6 mb-3 text-gray-900 dark:text-gray-100";
         renderLineWithLatex(trimmedLine.slice(2).trim(), h2);
         container.appendChild(h2);
         return;
@@ -70,7 +72,9 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
         flushParagraph();
         const li = document.createElement("li");
         li.className = "ml-6 mb-2";
-        const content = trimmedLine.replace(/^[*-]\s/, "").replace(/^\d+\.\s/, "");
+        const content = trimmedLine
+          .replace(/^[*-]\s/, "")
+          .replace(/^\d+\.\s/, "");
         renderLineWithLatex(content, li);
         container.appendChild(li);
         return;
@@ -91,7 +95,7 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
 
   const renderLineWithLatex = (text: string, parentElement: HTMLElement) => {
     let remaining = text;
-    
+
     while (remaining.length > 0) {
       // Check for display math ($$)
       const displayMatch = remaining.match(/^\$\$([^$]+)\$\$/);
@@ -144,7 +148,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
       const codeMatch = remaining.match(/^`([^`]+)`/);
       if (codeMatch) {
         const code = document.createElement("code");
-        code.className = "bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono";
+        code.className =
+          "bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono";
         code.textContent = codeMatch[1];
         parentElement.appendChild(code);
         remaining = remaining.slice(codeMatch[0].length);
@@ -153,7 +158,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
 
       // Regular character
       const nextSpecial = remaining.search(/[$*`]/);
-      const chunk = nextSpecial === -1 ? remaining : remaining.slice(0, nextSpecial);
+      const chunk =
+        nextSpecial === -1 ? remaining : remaining.slice(0, nextSpecial);
       if (chunk) {
         parentElement.appendChild(document.createTextNode(chunk));
         remaining = remaining.slice(chunk.length);
@@ -165,8 +171,8 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
   };
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="prose prose-sm max-w-none dark:prose-invert"
       style={{ lineHeight: "1.7" }}
     />

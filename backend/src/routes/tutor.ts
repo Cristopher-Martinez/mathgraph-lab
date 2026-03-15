@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
 
@@ -226,10 +227,7 @@ Ejemplo de formato:
     const text = result.response.text().trim();
 
     // Extraer JSON del texto (puede venir envuelto en backticks)
-    const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
-    if (!jsonMatch) return null;
-
-    const steps = JSON.parse(jsonMatch[0]);
+    const steps = parseGeminiJSON(text);
     if (!Array.isArray(steps) || steps.length === 0) return null;
 
     // Validar estructura
@@ -778,9 +776,8 @@ Responde SOLO con JSON válido (sin markdown, sin backticks):
       const text = result.response.text().trim();
 
       // Extraer JSON
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+      const parsed = parseGeminiJSON(text);
+      if (parsed) {
         res.json({
           answer: parsed.answer || "No pude procesar tu pregunta.",
           isActuallyAnswer: !!parsed.isActuallyAnswer,

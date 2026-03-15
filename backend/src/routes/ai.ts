@@ -5,6 +5,7 @@ import RedisStore from "rate-limit-redis";
 import prisma from "../prismaClient";
 import { searchChunks } from "../services/ragService";
 import { getRedis } from "../services/redisClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
 
@@ -124,9 +125,8 @@ Responde SOLO en este formato JSON (sin markdown, sin backticks):
         const result = await model.generateContent(prompt);
         const text = result.response.text().trim();
         // Parse JSON response
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = parseGeminiJSON(text);
+        if (parsed) {
           res.json({
             correct: !!parsed.correct,
             feedback: parsed.feedback || "",
@@ -225,9 +225,8 @@ Reglas:
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
 
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseGeminiJSON(text);
+    if (parsed) {
       const docs = {
         conceptos: parsed.conceptos || "",
         ejemplos: Array.isArray(parsed.ejemplos) ? parsed.ejemplos : [],
@@ -401,8 +400,7 @@ Reglas:
     try {
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      const tips = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      const tips = parseGeminiJSON(text) || [];
 
       const response = {
         tips:

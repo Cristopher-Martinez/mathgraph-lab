@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
-import { DIFF_CONFIG, NOTES_PER_PAGE, buildSolveParams } from "../utils/exerciseConstants";
+import {
+  DIFF_CONFIG,
+  NOTES_PER_PAGE,
+  buildSolveParams,
+} from "../utils/exerciseConstants";
 import IntervalVisualizer from "./IntervalVisualizer";
 import MarkdownLatex from "./MarkdownLatex";
 import MathAnswerInput from "./MathAnswerInput";
@@ -35,9 +39,7 @@ export function ExerciseSolvingView({
   const [tipsLoading, setTipsLoading] = useState(false);
   const [notesPage, setNotesPage] = useState(0);
 
-  const diffConfig = DIFF_CONFIG.find(
-    (d) => d.level === exercise?.difficulty,
-  );
+  const diffConfig = DIFF_CONFIG.find((d) => d.level === exercise?.difficulty);
   const topicFormulas = exercise?.topic?.formulas || [];
 
   // Reset state and load tips when exercise changes
@@ -197,8 +199,7 @@ export function ExerciseSolvingView({
               {exerciseTips.classContext.length > 0 && (
                 <details className="mt-2">
                   <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">
-                    📚 Notas del profesor (
-                    {exerciseTips.classContext.length})
+                    📚 Notas del profesor ({exerciseTips.classContext.length})
                   </summary>
                   <div className="mt-2 space-y-2">
                     {exerciseTips.classContext

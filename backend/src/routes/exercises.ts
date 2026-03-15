@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 import {
   checkExercise,
   distance,
@@ -166,14 +167,12 @@ El ejercicio debe ser ORIGINAL y DIFERENTE a los existentes.${avoidSection}`;
 
     const result = await model.generateContent(prompt);
     const text = result.response.text().trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const parsed = parseGeminiJSON(text);
 
-    if (!jsonMatch) {
+    if (!parsed) {
       res.status(500).json({ error: "No se pudo generar el ejercicio" });
       return;
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
     if (
       !parsed.pregunta ||
       typeof parsed.pregunta !== "string" ||

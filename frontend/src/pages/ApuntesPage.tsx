@@ -216,11 +216,24 @@ export default function ApuntesPage() {
           </span>
           <span className="text-gray-400">•</span>
           <span className="text-yellow-600 dark:text-yellow-400">
-            💡 {notes.reduce((s, cn) => s + cn.apuntes.filter((a) => a.categoria === "consejo").length, 0)} consejos
+            💡{" "}
+            {notes.reduce(
+              (s, cn) =>
+                s + cn.apuntes.filter((a) => a.categoria === "consejo").length,
+              0,
+            )}{" "}
+            consejos
           </span>
           <span className="text-gray-400">•</span>
           <span className="text-red-600 dark:text-red-400">
-            ⚠️ {notes.reduce((s, cn) => s + cn.apuntes.filter((a) => a.categoria === "error_comun").length, 0)} errores comunes
+            ⚠️{" "}
+            {notes.reduce(
+              (s, cn) =>
+                s +
+                cn.apuntes.filter((a) => a.categoria === "error_comun").length,
+              0,
+            )}{" "}
+            errores comunes
           </span>
         </div>
       )}
@@ -363,7 +376,9 @@ export default function ApuntesPage() {
             {expandedClass === cn.classId && (
               <div className="px-5 pb-5 space-y-2">
                 {(() => {
-                  const totalApuntesPages = Math.ceil(cn.apuntes.length / APUNTES_PER_PAGE);
+                  const totalApuntesPages = Math.ceil(
+                    cn.apuntes.length / APUNTES_PER_PAGE,
+                  );
                   const paginatedApuntes = cn.apuntes.slice(
                     apuntesPage * APUNTES_PER_PAGE,
                     (apuntesPage + 1) * APUNTES_PER_PAGE,
@@ -377,18 +392,24 @@ export default function ApuntesPage() {
                           CATEGORIA_CONFIG.observacion;
                         return (
                           <details
-                            key={apunte.id ?? apuntesPage * APUNTES_PER_PAGE + idx}
+                            key={
+                              apunte.id ?? apuntesPage * APUNTES_PER_PAGE + idx
+                            }
                             className={`rounded-lg border ${config.bg} group`}
                             open={paginatedApuntes.length === 1}>
                             <summary className="px-4 py-2.5 cursor-pointer select-none flex items-center gap-2 hover:opacity-80 transition-opacity">
                               <span className="text-base">{config.icon}</span>
-                              <h3 className={`font-semibold text-sm flex-1 ${config.color}`}>
+                              <h3
+                                className={`font-semibold text-sm flex-1 ${config.color}`}>
                                 {apunte.titulo}
                               </h3>
-                              <span className={`text-xs px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 ${config.color}`}>
+                              <span
+                                className={`text-xs px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 ${config.color}`}>
                                 {config.label}
                               </span>
-                              <span className="text-gray-400 text-xs group-open:rotate-180 transition-transform">▼</span>
+                              <span className="text-gray-400 text-xs group-open:rotate-180 transition-transform">
+                                ▼
+                              </span>
                             </summary>
                             <div className="px-4 pb-3 pt-1 border-t border-inherit">
                               <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -403,16 +424,23 @@ export default function ApuntesPage() {
                       {totalApuntesPages > 1 && (
                         <div className="flex items-center justify-between pt-2">
                           <button
-                            onClick={() => setApuntesPage((p) => Math.max(0, p - 1))}
+                            onClick={() =>
+                              setApuntesPage((p) => Math.max(0, p - 1))
+                            }
                             disabled={apuntesPage === 0}
                             className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             ← Anterior
                           </button>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {apuntesPage + 1} / {totalApuntesPages} • {cn.apuntes.length} apuntes
+                            {apuntesPage + 1} / {totalApuntesPages} •{" "}
+                            {cn.apuntes.length} apuntes
                           </span>
                           <button
-                            onClick={() => setApuntesPage((p) => Math.min(totalApuntesPages - 1, p + 1))}
+                            onClick={() =>
+                              setApuntesPage((p) =>
+                                Math.min(totalApuntesPages - 1, p + 1),
+                              )
+                            }
                             disabled={apuntesPage >= totalApuntesPages - 1}
                             className="text-xs px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                             Siguiente →

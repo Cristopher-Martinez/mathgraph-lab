@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 // Imagen de contexto para el análisis
@@ -159,7 +160,7 @@ function extractJson(texto: string): string {
 function parseAnalysis(jsonStr: string): TranscriptAnalysisResult | null {
   if (!jsonStr) return null;
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed = parseGeminiJSON(jsonStr);
     return {
       temas: parsed.temas || [],
       formulas: parsed.formulas || [],

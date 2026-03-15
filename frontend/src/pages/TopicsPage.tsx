@@ -7,7 +7,10 @@ import MarkdownLatex from "../components/MarkdownLatex";
 import SocraticTutor from "../components/SocraticTutor";
 import TopicCard from "../components/TopicCard";
 import { api } from "../services/api";
-import { DIFF_CONFIG, DIFFICULTY_COLOR_CLASSES, ITEMS_PER_PAGE } from "../utils/exerciseConstants";
+import {
+  DIFF_CONFIG,
+  DIFFICULTY_COLOR_CLASSES,
+} from "../utils/exerciseConstants";
 
 type DetailView = "overview" | "exercises" | "solving" | "socratic";
 
@@ -277,159 +280,175 @@ export default function TopicsPage() {
 
               {/* Tab content */}
               <div className="p-5">
-                {docsTab === "conceptos" && (() => {
-                  // Split conceptos into sections by double newline or markdown headings
-                  const raw = topicDocs.conceptos || "";
-                  const sections = raw
-                    .split(/\n(?=#{1,3}\s)|(?:\n\s*\n)/)
-                    .map((s: string) => s.trim())
-                    .filter((s: string) => s.length > 0);
+                {docsTab === "conceptos" &&
+                  (() => {
+                    // Split conceptos into sections by double newline or markdown headings
+                    const raw = topicDocs.conceptos || "";
+                    const sections = raw
+                      .split(/\n(?=#{1,3}\s)|(?:\n\s*\n)/)
+                      .map((s: string) => s.trim())
+                      .filter((s: string) => s.length > 0);
 
-                  const toggleSection = (idx: number) => {
-                    setExpandedSections((prev) =>
-                      prev === idx ? null : idx,
-                    );
-                  };
+                    const toggleSection = (idx: number) => {
+                      setExpandedSections((prev) =>
+                        prev === idx ? null : idx,
+                      );
+                    };
 
-                  if (sections.length <= 1) {
+                    if (sections.length <= 1) {
+                      return (
+                        <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
+                          <MarkdownLatex content={raw} />
+                        </div>
+                      );
+                    }
+
                     return (
-                      <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
-                        <MarkdownLatex content={raw} />
+                      <div className="space-y-2">
+                        {sections.map((section: string, idx: number) => {
+                          const isExpanded = expandedSections === idx;
+                          const headingMatch =
+                            section.match(/^(#{1,3})\s+(.+)/);
+                          const title = headingMatch
+                            ? headingMatch[2]
+                            : section.length > 80
+                              ? section.slice(0, 80) + "..."
+                              : section.split("\n")[0];
+                          const content = headingMatch
+                            ? section.replace(/^#{1,3}\s+.+\n?/, "").trim()
+                            : section;
+
+                          return (
+                            <div
+                              key={idx}
+                              className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => toggleSection(idx)}
+                                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                <span className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                                  {title}
+                                </span>
+                                <span
+                                  className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                                  ▼
+                                </span>
+                              </button>
+                              {isExpanded && (
+                                <div className="px-4 pb-4 prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm leading-relaxed border-t border-gray-100 dark:border-gray-700 pt-3">
+                                  <MarkdownLatex content={content || section} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     );
-                  }
+                  })()}
 
-                  return (
-                    <div className="space-y-2">
-                      {sections.map((section: string, idx: number) => {
-                        const isExpanded = expandedSections === idx;
-                        const headingMatch = section.match(/^(#{1,3})\s+(.+)/);
-                        const title = headingMatch
-                          ? headingMatch[2]
-                          : section.length > 80
-                            ? section.slice(0, 80) + "..."
-                            : section.split("\n")[0];
-                        const content = headingMatch
-                          ? section.replace(/^#{1,3}\s+.+\n?/, "").trim()
-                          : section;
-
-                        return (
-                          <div
-                            key={idx}
-                            className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                            <button
-                              onClick={() => toggleSection(idx)}
-                              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                              <span className="font-medium text-sm text-gray-800 dark:text-gray-200">
-                                {title}
-                              </span>
-                              <span
-                                className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
-                                ▼
-                              </span>
-                            </button>
-                            {isExpanded && (
-                              <div className="px-4 pb-4 prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm leading-relaxed border-t border-gray-100 dark:border-gray-700 pt-3">
-                                <MarkdownLatex content={content || section} />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-
-                {docsTab === "ejemplos" && (() => {
-                  const ejemplos = topicDocs.ejemplos || [];
-                  if (ejemplos.length === 0) {
-                    return (
-                      <p className="text-gray-400 dark:text-gray-500 text-sm">
-                        No hay ejemplos disponibles.
-                      </p>
+                {docsTab === "ejemplos" &&
+                  (() => {
+                    const ejemplos = topicDocs.ejemplos || [];
+                    if (ejemplos.length === 0) {
+                      return (
+                        <p className="text-gray-400 dark:text-gray-500 text-sm">
+                          No hay ejemplos disponibles.
+                        </p>
+                      );
+                    }
+                    const safeIndex = Math.min(
+                      ejemploIndex,
+                      ejemplos.length - 1,
                     );
-                  }
-                  const safeIndex = Math.min(ejemploIndex, ejemplos.length - 1);
-                  const ej = ejemplos[safeIndex];
+                    const ej = ejemplos[safeIndex];
 
-                  return (
-                    <div>
-                      {/* Carousel controls */}
-                      <div className="flex items-center justify-between mb-3">
-                        <button
-                          onClick={() => setEjemploIndex((i) => Math.max(0, i - 1))}
-                          disabled={safeIndex === 0}
-                          className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
-                          ←
-                        </button>
-                        <div className="flex items-center gap-1.5">
-                          {ejemplos.map((_: any, i: number) => (
-                            <button
-                              key={i}
-                              onClick={() => setEjemploIndex(i)}
-                              aria-label={`Ejemplo ${i + 1}`}
-                              className={`w-2 h-2 rounded-full transition-all ${
-                                i === safeIndex
-                                  ? "bg-indigo-500 scale-125"
-                                  : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400"
-                              }`}
-                            />
-                          ))}
-                          <span className="ml-1.5 text-xs text-gray-400">
-                            {safeIndex + 1}/{ejemplos.length}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1))}
-                          disabled={safeIndex === ejemplos.length - 1}
-                          className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
-                          →
-                        </button>
-                      </div>
-
-                      {/* Card */}
-                      <div
-                        className="border border-indigo-200 dark:border-indigo-800/40 rounded-xl overflow-hidden shadow-sm"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === "ArrowLeft") setEjemploIndex((i) => Math.max(0, i - 1));
-                          if (e.key === "ArrowRight") setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1));
-                        }}>
-                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 flex items-center gap-2">
-                          <span className="bg-indigo-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                            {safeIndex + 1}
-                          </span>
-                          <span className="font-medium text-sm text-indigo-800 dark:text-indigo-300">
-                            {ej.titulo}
-                          </span>
-                        </div>
-                        <div className="p-4 space-y-3">
-                          <div>
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
-                              Problema
+                    return (
+                      <div>
+                        {/* Carousel controls */}
+                        <div className="flex items-center justify-between mb-3">
+                          <button
+                            onClick={() =>
+                              setEjemploIndex((i) => Math.max(0, i - 1))
+                            }
+                            disabled={safeIndex === 0}
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
+                            ←
+                          </button>
+                          <div className="flex items-center gap-1.5">
+                            {ejemplos.map((_: any, i: number) => (
+                              <button
+                                key={i}
+                                onClick={() => setEjemploIndex(i)}
+                                aria-label={`Ejemplo ${i + 1}`}
+                                className={`w-2 h-2 rounded-full transition-all ${
+                                  i === safeIndex
+                                    ? "bg-indigo-500 scale-125"
+                                    : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400"
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-1.5 text-xs text-gray-400">
+                              {safeIndex + 1}/{ejemplos.length}
                             </span>
-                            <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700">
-                              <MarkdownLatex content={ej.problema} />
-                            </div>
                           </div>
-                          <details className="group">
-                            <summary className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-400 cursor-pointer hover:underline select-none">
-                              Ver solución
-                            </summary>
-                            <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 border-t border-gray-100 dark:border-gray-700 pt-2">
-                              <MarkdownLatex content={ej.solucion} />
-                            </div>
-                          </details>
+                          <button
+                            onClick={() =>
+                              setEjemploIndex((i) =>
+                                Math.min(ejemplos.length - 1, i + 1),
+                              )
+                            }
+                            disabled={safeIndex === ejemplos.length - 1}
+                            className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm">
+                            →
+                          </button>
                         </div>
-                      </div>
 
-                      {/* Keyboard hint */}
-                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-2">
-                        ← → para navegar
-                      </p>
-                    </div>
-                  );
-                })()}
+                        {/* Card */}
+                        <div
+                          className="border border-indigo-200 dark:border-indigo-800/40 rounded-xl overflow-hidden shadow-sm"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowLeft")
+                              setEjemploIndex((i) => Math.max(0, i - 1));
+                            if (e.key === "ArrowRight")
+                              setEjemploIndex((i) =>
+                                Math.min(ejemplos.length - 1, i + 1),
+                              );
+                          }}>
+                          <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 flex items-center gap-2">
+                            <span className="bg-indigo-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                              {safeIndex + 1}
+                            </span>
+                            <span className="font-medium text-sm text-indigo-800 dark:text-indigo-300">
+                              {ej.titulo}
+                            </span>
+                          </div>
+                          <div className="p-4 space-y-3">
+                            <div>
+                              <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                                Problema
+                              </span>
+                              <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700">
+                                <MarkdownLatex content={ej.problema} />
+                              </div>
+                            </div>
+                            <details className="group">
+                              <summary className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-400 cursor-pointer hover:underline select-none">
+                                Ver solución
+                              </summary>
+                              <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 border-t border-gray-100 dark:border-gray-700 pt-2">
+                                <MarkdownLatex content={ej.solucion} />
+                              </div>
+                            </details>
+                          </div>
+                        </div>
+
+                        {/* Keyboard hint */}
+                        <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-2">
+                          ← → para navegar
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                 {docsTab === "casos" && (
                   <div className="space-y-3">

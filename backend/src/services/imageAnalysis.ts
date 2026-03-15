@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as fs from "fs";
 import * as path from "path";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 import { cacheKey, getCached, setCached, TTL } from "./geminiCache";
 
 // Resultado del análisis de imagen
@@ -136,7 +137,7 @@ export async function analizarImagen(
   }
 
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed = parseGeminiJSON(jsonStr);
     const result: ImageAnalysisResult = {
       formulas: parsed.formulas || [],
       ecuaciones: parsed.ecuaciones || [],
