@@ -102,8 +102,46 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-server.listen(PORT, () => {
-  console.log(`MathGraph Lab API running on http://localhost:${PORT}`);
+server.listen(PORT, async () => {
+  console.log(`\x1b[32m✓ API running on http://localhost:${PORT}\x1b[0m`);
+
+  // Startup health check
+  try {
+    const redis = getRedis();
+    await redis.ping();
+    console.log("\x1b[32m✓ Redis connected\x1b[0m");
+  } catch {
+    console.warn("\x1b[33m⚠ Redis not reachable — some features may be limited\x1b[0m");
+  }
+
+  try {
+    const { default: prisma } = await import("./prismaClient");
+    await prisma.$queryRaw`SELECT 1`;
+    console.log("\x1b[32m✓ PostgreSQL connected\x1b[0m");
+  } catch {
+    console.warn("\x1b[33m⚠ PostgreSQL not reachable — check DATABASE_URL\x1b[0m");
+  }
 });
+
+// Graceful shutdown
+function gracefulShutdown(signal: string) {
+  console.log(`\n\x1b[36m[${signal}] Shutting down gracefully...\x1b[0m`);
+  server.close(async () => {
+    try {
+      const { default: prisma } = await import("./prismaClient");
+      await prisma.$disconnect();
+    } catch {}
+    try {
+      const redis = getRedis();
+      redis.disconnect();
+    } catch {}
+    console.log("\x1b[32m✓ Cleanup complete\x1b[0m");
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 5000);
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 export default app;

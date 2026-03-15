@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "predev": "kill-port 3001 5174",
-    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+    "predev": "node scripts/check-env.js && kill-port 3001 5174",
+    "dev": "concurrently --names \"API,UI\" --prefix-colors \"cyan,magenta\" \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
     "server": "npx prisma generate && npx prisma migrate deploy && cd backend && npx ts-node src/seed.ts && npx ts-node src/server.ts",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
     "db:migrate": "npx prisma migrate dev --name init",
@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "dotenv": "^17.3.1",
     "kill-port": "^2.0.1",
     "prisma": "^5.20.0"
   }
