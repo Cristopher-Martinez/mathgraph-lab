@@ -126,9 +126,7 @@ export async function propagateClassChanges(classId: number) {
   const temas = temasNormalizados.filter((tema) => {
     const isNonAcademic = NON_ACADEMIC_PATTERNS.some((pat) => pat.test(tema));
     if (isNonAcademic) {
-      console.log(
-        `[AutoPropagation] Tema filtrado (no académico): "${tema}"`,
-      );
+      console.log(`[AutoPropagation] Tema filtrado (no académico): "${tema}"`);
     }
     return !isNonAcademic;
   });
@@ -352,7 +350,12 @@ export async function propagateClassChanges(classId: number) {
           })),
         });
       }
-      await updateStep(classId, "Generando apuntes", "done", `${apuntes.length} apuntes`);
+      await updateStep(
+        classId,
+        "Generando apuntes",
+        "done",
+        `${apuntes.length} apuntes`,
+      );
     } else {
       await updateStep(classId, "Generando apuntes", "done", "omitido");
     }
@@ -1007,11 +1010,19 @@ export async function rollbackClass(classId: number) {
 
   // Ejecutar en transacción
   await prisma.$transaction(async (tx) => {
-    // 1. Eliminar ejercicios generados por esta clase
+    // 1. Eliminar tips de ejercicios generados por esta clase, luego los ejercicios
+    const exercisesOfClass = await tx.exercise.findMany({
+      where: { generatedByClassId: classId },
+      select: { id: true },
+    });
+    const exerciseIds = exercisesOfClass.map(e => e.id);
+    if (exerciseIds.length > 0) {
+      await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: exerciseIds } } });
+    }
     const deletedExercises = await tx.exercise.deleteMany({
       where: { generatedByClassId: classId },
     });
-    console.log(`[Rollback] Eliminados ${deletedExercises.count} ejercicios`);
+    console.log(`[Rollback] Eliminados ${deletedExercises.count} ejercicios y sus tips`);
 
     // 2. Eliminar dependencias generadas por esta clase
     const deletedDependencies = await tx.topicDependency.deleteMany({
@@ -1065,6 +1076,16 @@ export async function rollbackClass(classId: number) {
             `[Rollback] Topic ${topic.name} mantenido (tiene ejercicios manuales)`,
           );
         } else {
+          // Eliminar tips de ejercicios del topic
+          const topicExercises = await tx.exercise.findMany({
+            where: { topicId: topic.id },
+            select: { id: true },
+          });
+          if (topicExercises.length > 0) {
+            await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: topicExercises.map(e => e.id) } } });
+          }
+          // Eliminar documentación del topic
+          await tx.topicDoc.deleteMany({ where: { topicId: topic.id } });
           // Eliminar TODOS los ejercicios del topic (no solo los de esta clase)
           await tx.exercise.deleteMany({ where: { topicId: topic.id } });
           // Eliminar fórmulas asociadas antes de borrar el topic
