@@ -25,6 +25,9 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy (nginx/Cloudflare) for correct client IP in rate limiter
+app.set("trust proxy", 1);
+
 // Initialize WebSocket
 initWebSocket(server);
 
