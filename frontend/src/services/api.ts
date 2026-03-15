@@ -260,4 +260,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ topicName }),
     }),
+
+  getExerciseTips: (exerciseId: number) =>
+    request<{
+      tips: { text: string; source: "clase" | "general" | "ejercicio" }[];
+      classContext: { titulo: string; contenido: string; categoria: string }[];
+    }>("/ai/exercise-tips", {
+      method: "POST",
+      body: JSON.stringify({ exerciseId }),
+    }),
 };

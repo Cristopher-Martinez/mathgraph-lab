@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import RedisStore from "rate-limit-redis";
 import prisma from "../prismaClient";
 import { getRedis } from "../services/redisClient";
+import { searchChunks } from "../services/ragService";
 
 const router = Router();
 
@@ -231,6 +232,136 @@ Reglas:
   } catch (err) {
     console.error("Topic docs generation error:", err);
     res.json(getFallbackDocs(req.body.topicName || ""));
+  }
+});
+
+// Generate contextual tips for an exercise using RAG + class notes
+router.post("/exercise-tips", async (req: Request, res: Response) => {
+  try {
+    const { exerciseId } = req.body;
+    if (!exerciseId) {
+      res.status(400).json({ error: "exerciseId is required" });
+      return;
+    }
+
+    const exercise = await prisma.exercise.findUnique({
+      where: { id: parseInt(exerciseId, 10) },
+      include: { topic: true },
+    });
+
+    if (!exercise) {
+      res.status(404).json({ error: "Exercise not found" });
+      return;
+    }
+
+    const redis = getRedis();
+    const tipsCacheKey = `exerciseTips:${exercise.id}`;
+    const cached = await redis.get(tipsCacheKey);
+    if (cached) {
+      res.json(JSON.parse(cached));
+      return;
+    }
+
+    const exerciseText = exercise.latex || "";
+    const topicName = exercise.topic?.name || "";
+    const searchQuery = `${topicName} ${exerciseText}`;
+
+    // 1. Search RAG for relevant class fragments
+    let ragContext: { text: string; classId: number; score: number }[] = [];
+    try {
+      ragContext = await searchChunks(searchQuery, { topK: 5, minScore: 0.25 });
+    } catch { /* RAG may not be available */ }
+
+    // 2. Search ClassNotes for tips/observations related to this topic's class
+    let classNotes: { titulo: string; contenido: string; categoria: string }[] = [];
+    if (exercise.generatedByClassId) {
+      classNotes = await prisma.classNote.findMany({
+        where: {
+          classId: exercise.generatedByClassId,
+          categoria: { in: ["consejo", "observacion", "error_comun"] },
+        },
+        select: { titulo: true, contenido: true, categoria: true },
+      });
+    }
+
+    // 3. Parse static hints from exercise
+    let staticHints: string[] = [];
+    if (exercise.hints) {
+      try { staticHints = JSON.parse(exercise.hints); } catch { /* ignore */ }
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      const result = {
+        tips: staticHints.length > 0
+          ? staticHints.map(h => ({ text: h, source: "ejercicio" as const }))
+          : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" as const }],
+        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+      };
+      res.json(result);
+      return;
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+    const ragSection = ragContext.length > 0
+      ? `\n\nFragmentos relevantes del registro de clase:\n${ragContext.map((r, i) => `[${i + 1}] ${r.text}`).join("\n\n")}`
+      : "";
+
+    const notesSection = classNotes.length > 0
+      ? `\n\nNotas del profesor sobre este tema:\n${classNotes.map(n => `- [${n.categoria}] ${n.titulo}: ${n.contenido}`).join("\n")}`
+      : "";
+
+    const prompt = `Eres un tutor matemático. Genera consejos para ayudar a resolver este ejercicio SIN dar la respuesta.
+
+Tema: ${topicName}
+Ejercicio: ${exerciseText}
+${ragSection}${notesSection}
+
+Genera exactamente 3 consejos prácticos y útiles para resolver este ejercicio. Si hay contexto de la clase (fragmentos o notas del profesor), usa esa información para hacer los consejos más específicos y relevantes.
+
+Responde SOLO en JSON (sin markdown, sin backticks):
+[
+  {"text": "consejo 1", "source": "clase" o "general"},
+  {"text": "consejo 2", "source": "clase" o "general"},
+  {"text": "consejo 3", "source": "clase" o "general"}
+]
+
+Reglas:
+- source "clase" si el consejo se basa en info de los fragmentos/notas del profesor
+- source "general" si es un consejo general de matemáticas
+- NO reveles la respuesta, solo orienta al estudiante
+- Máximo 2 oraciones por consejo
+- En español`;
+
+    try {
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      const tips = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+      const response = {
+        tips: tips.length > 0 ? tips : (staticHints.length > 0
+          ? staticHints.map((h: string) => ({ text: h, source: "ejercicio" }))
+          : [{ text: "Identifica los datos del problema y aplica la fórmula adecuada.", source: "general" }]),
+        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+      };
+
+      await redis.setex(tipsCacheKey, 86400, JSON.stringify(response));
+      res.json(response);
+    } catch (err) {
+      console.error("Gemini exercise-tips error:", err);
+      res.json({
+        tips: staticHints.length > 0
+          ? staticHints.map(h => ({ text: h, source: "ejercicio" }))
+          : [{ text: "Identifica los datos del problema y la fórmula relevante.", source: "general" }],
+        classContext: classNotes.map(n => ({ titulo: n.titulo, contenido: n.contenido, categoria: n.categoria })),
+      });
+    }
+  } catch (err) {
+    console.error("Exercise tips error:", err);
+    res.status(500).json({ error: "Failed to generate tips" });
   }
 });
 

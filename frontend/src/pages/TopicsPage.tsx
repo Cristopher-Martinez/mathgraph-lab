@@ -45,6 +45,10 @@ export default function TopicsPage() {
   const [solverResult, setSolverResult] = useState<any>(null);
   const [score, setScore] = useState(0);
 
+  // Exercise tips state
+  const [exerciseTips, setExerciseTips] = useState<any>(null);
+  const [tipsLoading, setTipsLoading] = useState(false);
+
   // Topic documentation state
   const [topicDocs, setTopicDocs] = useState<any>(null);
   const [docsLoading, setDocsLoading] = useState(false);
@@ -101,6 +105,13 @@ export default function TopicsPage() {
     setAnswer("");
     setFeedback(null);
     setSolverResult(null);
+    // Load tips
+    const ex = filteredExercises[exerciseIndex];
+    if (ex?.id) {
+      setTipsLoading(true);
+      setExerciseTips(null);
+      api.getExerciseTips(ex.id).then(setExerciseTips).catch(() => {}).finally(() => setTipsLoading(false));
+    }
   };
 
   const handleStartSocratic = (exerciseIndex: number) => {
@@ -221,6 +232,45 @@ export default function TopicsPage() {
             }}
           />
         </div>
+
+        {/* Consejos del ejercicio */}
+        {(tipsLoading || exerciseTips) && (
+          <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg" open>
+            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-cyan-800 dark:text-cyan-200 select-none flex items-center gap-2">
+              <span>💡</span> Consejos para resolver {tipsLoading && <span className="ml-2 text-xs text-cyan-500">(cargando...)</span>}
+            </summary>
+            {exerciseTips && (
+              <div className="px-4 pb-4 space-y-2 border-t border-cyan-200 dark:border-cyan-800 pt-3">
+                {exerciseTips.tips.map((tip: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                      tip.source === "clase" ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200" : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
+                    }`}>{i + 1}</span>
+                    <div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{tip.text}</p>
+                      {tip.source === "clase" && (
+                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">📝 Basado en tus clases</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {exerciseTips.classContext.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">📚 Notas del profesor ({exerciseTips.classContext.length})</summary>
+                    <div className="mt-2 space-y-2">
+                      {exerciseTips.classContext.map((note: any, i: number) => (
+                        <div key={i} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                          <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{note.titulo}</p>
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1"><MarkdownLatex content={note.contenido} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </details>
+        )}
 
         {/* Ejercicio */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
