@@ -226,6 +226,11 @@ export const api = {
       method: "DELETE",
     }),
 
+  cancelClassGeneration: (id: number) =>
+    request<any>(`/class-log/${id}/generation`, {
+      method: "DELETE",
+    }),
+
   generateClassExercises: (id: number) =>
     request<any>(`/class-log/${id}/generate-exercises`, {
       method: "POST",

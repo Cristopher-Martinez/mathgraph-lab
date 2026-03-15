@@ -197,26 +197,6 @@ export default function ClassLogPage() {
 
     setEnviando(true);
     setMensaje(null);
-    abortRef.current = new AbortController();
-
-    // Estimar tiempo según tamaño
-    const charCount = transcripcion.length;
-    const imgCount = imagenes.length;
-    const estimatedSteps: string[] = [];
-    if (tieneImagenes) estimatedSteps.push(`analizando ${imgCount} imagen(es)`);
-    if (tieneTranscripcion) {
-      if (charCount > 30000) {
-        estimatedSteps.push(
-          `procesando transcripción larga (${Math.ceil(charCount / 25000)} partes)`,
-        );
-      } else {
-        estimatedSteps.push("analizando transcripción");
-      }
-    }
-    estimatedSteps.push("generando ejercicios");
-    setProgresoTexto(
-      `Paso 1/${estimatedSteps.length}: ${estimatedSteps[0]}...`,
-    );
 
     try {
       const data = {
@@ -230,22 +210,9 @@ export default function ClassLogPage() {
 
       const result = await api.createClassLog(data);
 
-      // Construir mensaje de éxito con stats
-      let textoExito = "¡Clase registrada y analizada correctamente!";
-      if (result.stats) {
-        const s = result.stats;
-        const partes: string[] = [];
-        if (s.temasDetectados > 0) partes.push(`${s.temasDetectados} temas`);
-        if (s.formulasExtraidas > 0)
-          partes.push(`${s.formulasExtraidas} fórmulas`);
-        if (s.ejerciciosGenerados > 0)
-          partes.push(`${s.ejerciciosGenerados} ejercicios`);
-        if (s.imagenesProcesadas > 0)
-          partes.push(`${s.imagenesProcesadas} imágenes`);
-        if (partes.length > 0) textoExito += ` (${partes.join(", ")})`;
-      }
+      // Backend now responds immediately — analysis happens in background
+      let textoExito = "¡Clase registrada! El análisis y generación de ejercicios continúa en segundo plano.";
 
-      // Mostrar advertencias si hubo errores parciales
       if (result.advertencias && result.advertencias.length > 0) {
         setMensaje({
           tipo: "advertencia",
@@ -272,7 +239,6 @@ export default function ClassLogPage() {
     } finally {
       setEnviando(false);
       setProgresoTexto("");
-      abortRef.current = null;
     }
   }
 

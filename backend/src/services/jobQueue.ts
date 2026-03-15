@@ -1,6 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import { propagateClassChanges } from "./autoPropagation";
 import { failGeneration } from "./generationStatus";
+import { getRedis } from "./redisClient";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -27,12 +28,28 @@ try {
   const worker = new Worker(
     "class-propagation",
     async (job) => {
-      const { classId } = job.data;
-      console.log(
-        `[JobQueue] Processing propagation for class ${classId} (attempt ${job.attemptsMade + 1})`,
-      );
-      await propagateClassChanges(classId);
-      console.log(`[JobQueue] Completed propagation for class ${classId}`);
+      // Check cancellation before starting
+      const cancelled = await getRedis().get(`generation:cancel:${job.data.classId}`);
+      if (cancelled) {
+        console.log(`[JobQueue] Job cancelled for class ${job.data.classId}`);
+        return;
+      }
+
+      if (job.name === "analyze-and-propagate") {
+        const { classId, transcript, images } = job.data;
+        console.log(
+          `[JobQueue] Full analysis for class ${classId} (attempt ${job.attemptsMade + 1})`,
+        );
+        const { analyzeAndPropagate } = await import("./autoPropagation");
+        await analyzeAndPropagate(classId, transcript, images);
+      } else {
+        const { classId } = job.data;
+        console.log(
+          `[JobQueue] Processing propagation for class ${classId} (attempt ${job.attemptsMade + 1})`,
+        );
+        await propagateClassChanges(classId);
+      }
+      console.log(`[JobQueue] Completed job for class ${job.data.classId}`);
     },
     {
       connection,
@@ -94,4 +111,37 @@ export async function enqueuePropagation(classId: number): Promise<void> {
       failGeneration(classId, err.message || "Error en propagación");
     });
   }
+}
+
+/**
+ * Enqueue full analysis + propagation (transcript analysis in background).
+ */
+export async function enqueueFullAnalysis(
+  classId: number,
+  transcript: string,
+  images?: any[],
+): Promise<void> {
+  if (queue && ready) {
+    await queue.add("analyze-and-propagate", { classId, transcript, images }, {
+      jobId: `analyze-${classId}`,
+    });
+    console.log(`[JobQueue] Enqueued full analysis for class ${classId}`);
+  } else {
+    // Fallback: direct fire-and-forget
+    console.log(`[JobQueue] Fallback: direct full analysis for class ${classId}`);
+    import("./autoPropagation").then(({ analyzeAndPropagate }) => {
+      analyzeAndPropagate(classId, transcript, images).catch((err) => {
+        console.error("[JobQueue] Fallback analysis error:", err);
+        failGeneration(classId, err.message || "Error en análisis");
+      });
+    });
+  }
+}
+
+/**
+ * Cancel a generation in progress.
+ */
+export async function cancelGeneration(classId: number): Promise<void> {
+  await getRedis().set(`generation:cancel:${classId}`, "1", "EX", 600);
+  console.log(`[JobQueue] Cancelled generation for class ${classId}`);
 }

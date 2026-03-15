@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 import { generarEjercicios } from "./exerciseGeneration";
+import { parallelWithLimit } from "./geminiSemaphore";
 import {
   completeGeneration,
   startGeneration,
@@ -10,6 +11,95 @@ import {
 import { getRedis, getGenerationStatus } from "./redisClient";
 
 const PROPAGATION_LOCK_TTL = 600; // 10 minutes max lock
+
+/**
+ * Check if generation was cancelled via Redis flag.
+ */
+async function isCancelled(classId: number): Promise<boolean> {
+  const val = await getRedis().get(`generation:cancel:${classId}`);
+  return val !== null;
+}
+
+/**
+ * Full background pipeline: analyze transcript + propagate.
+ * Called from jobQueue for async POST /class-log.
+ */
+export async function analyzeAndPropagate(
+  classId: number,
+  transcript: string,
+  images?: any[],
+): Promise<void> {
+  console.log(`[AnalyzeAndPropagate] Starting for class ${classId}`);
+
+  const { analizarTranscripcion } = await import("./transcriptAnalysis");
+  const { validarImagen } = await import("./imageAnalysis");
+  const { indexClassTranscript } = await import("./ragService");
+  const { startGeneration: startGen, updateStep: updStep, completeGeneration: completeGen } = await import("./generationStatus");
+
+  // Initialize generation tracking with a placeholder step for analysis
+  await startGen(classId, ["Analizando transcripción"], "class");
+  await updStep(classId, "Analizando transcripción", "running");
+
+  try {
+    // Cancel check
+    if (await isCancelled(classId)) {
+      console.log(`[AnalyzeAndPropagate] Cancelled for class ${classId}`);
+      await updStep(classId, "Analizando transcripción", "error", "cancelado");
+      return;
+    }
+
+    // 1. Prepare images
+    const imagenesContexto: any[] = [];
+    if (images && Array.isArray(images)) {
+      for (const img of images) {
+        if (!img.base64) continue;
+        const validacion = validarImagen(img.base64, img.mimeType || "image/jpeg");
+        if (validacion.valida) {
+          imagenesContexto.push({ base64: img.base64, mimeType: img.mimeType || "image/jpeg" });
+        }
+      }
+    }
+
+    // 2. Analyze transcript
+    const textoTranscripcion = transcript?.trim() || "";
+    const textoFinal = textoTranscripcion ||
+      "[Sin transcripción de voz. Analiza únicamente las imágenes adjuntas de la clase.]";
+
+    const analisis = (textoTranscripcion.length > 0 || imagenesContexto.length > 0)
+      ? await analizarTranscripcion(textoFinal, imagenesContexto.length > 0 ? imagenesContexto : undefined)
+      : { temas: [], formulas: [], tiposEjercicio: [], resumen: "Clase sin contenido.", conceptosClave: [], actividades: [] };
+
+    await updStep(classId, "Analizando transcripción", "done");
+
+    // Cancel check
+    if (await isCancelled(classId)) return;
+
+    // 3. Update ClassLog record with analysis results
+    await prisma.classLog.update({
+      where: { id: classId },
+      data: {
+        summary: analisis.resumen,
+        topics: JSON.stringify(analisis.temas),
+        formulas: JSON.stringify(analisis.formulas),
+        activities: JSON.stringify(analisis.actividades),
+      },
+    });
+
+    // 4. Index for RAG (fire-and-forget)
+    if (textoTranscripcion.length > 0) {
+      indexClassTranscript(classId, textoTranscripcion, analisis.resumen).catch((err) => {
+        console.error(`[AnalyzeAndPropagate] RAG index error:`, err);
+      });
+    }
+
+    // 5. Propagate (topics, exercises, docs, DAG) — reuses existing logic
+    await propagateClassChanges(classId);
+  } catch (err: any) {
+    console.error(`[AnalyzeAndPropagate] Error for class ${classId}:`, err);
+    await updStep(classId, "Analizando transcripción", "error", err.message);
+    throw err;
+  }
+}
 
 /**
  * Normaliza el nombre de un tema para consistencia
@@ -114,6 +204,12 @@ export async function propagateClassChanges(classId: number) {
 }
 
 async function _doPropagation(classId: number) {
+  // Cancel check
+  if (await isCancelled(classId)) {
+    console.log(`[AutoPropagation] Propagación cancelada para clase ${classId}`);
+    return;
+  }
+
   const classLog = await prisma.classLog.findUnique({
     where: { id: classId },
   });
@@ -219,7 +315,7 @@ async function _doPropagation(classId: number) {
     `${nuevos.length} nuevos, ${existentes.length} existentes`,
   );
 
-  // 2. Generar ejercicios — nuevos para topics nuevos, refuerzo para existentes
+  // 2. Generar ejercicios — nuevos para topics nuevos, refuerzo para existentes (PARALELO)
   const resultadosGeneracion: {
     topic: string;
     generados: number;
@@ -227,7 +323,7 @@ async function _doPropagation(classId: number) {
     error?: string;
   }[] = [];
 
-  for (const topicInfo of topicResults) {
+  const exerciseTasks = topicResults.map((topicInfo) => async () => {
     // Verificar si ya se generaron ejercicios para este topic desde ESTA clase
     const yaGenerados = await prisma.exercise.count({
       where: { topicId: topicInfo.id, generatedByClassId: classId },
@@ -236,12 +332,11 @@ async function _doPropagation(classId: number) {
       console.log(
         `[AutoPropagation] Ejercicios ya generados para "${topicInfo.name}" desde clase ${classId}, omitiendo`,
       );
-      resultadosGeneracion.push({
+      return {
         topic: topicInfo.name,
         generados: yaGenerados,
-        tipo: topicInfo.isNew ? "nuevo" : "refuerzo",
-      });
-      continue;
+        tipo: (topicInfo.isNew ? "nuevo" : "refuerzo") as "nuevo" | "refuerzo",
+      };
     }
 
     // Contar ejercicios existentes del tema para decidir cantidad de refuerzo
@@ -256,7 +351,6 @@ async function _doPropagation(classId: number) {
           2,
           Math.min(3, Math.ceil(10 / Math.max(1, ejerciciosExistentes / 10))),
         );
-    // Refuerzo: 2-3 por dificultad = 6-9 adicionales
 
     const tipoGeneracion = topicInfo.isNew ? "nuevo" : "refuerzo";
     const stepLabel = `Ejercicios: ${topicInfo.originalName}`;
@@ -280,13 +374,13 @@ async function _doPropagation(classId: number) {
         console.warn(
           `[AutoPropagation] IA retornó 0 ejercicios válidos para ${topicInfo.name}`,
         );
-        resultadosGeneracion.push({
+        await updateStep(classId, stepLabel, "done", "0 válidos");
+        return {
           topic: topicInfo.name,
           generados: 0,
-          tipo: tipoGeneracion,
+          tipo: tipoGeneracion as "nuevo" | "refuerzo",
           error: "0 ejercicios válidos",
-        });
-        continue;
+        };
       }
 
       const diffMap: Record<string, string> = {
@@ -311,25 +405,28 @@ async function _doPropagation(classId: number) {
             ? ` (${resultado.stats.exitosos}/${resultado.stats.intentos} lotes OK, ${resultado.stats.tiempoMs}ms)`
             : ""),
       );
-      resultadosGeneracion.push({
+      await updateStep(classId, stepLabel, "done", `${data.length} ejercicios`);
+      return {
         topic: topicInfo.name,
         generados: data.length,
-        tipo: tipoGeneracion,
-      });
-      await updateStep(classId, stepLabel, "done", `${data.length} ejercicios`);
+        tipo: tipoGeneracion as "nuevo" | "refuerzo",
+      };
     } catch (err: any) {
       console.error(
         `[AutoPropagation] ✗ Error generando ejercicios para ${topicInfo.name}: ${err.message}`,
       );
-      resultadosGeneracion.push({
+      await updateStep(classId, stepLabel, "error", err.message);
+      return {
         topic: topicInfo.name,
         generados: 0,
-        tipo: tipoGeneracion,
+        tipo: tipoGeneracion as "nuevo" | "refuerzo",
         error: err.message,
-      });
-      await updateStep(classId, stepLabel, "error", err.message);
+      };
     }
-  }
+  });
+
+  const exerciseResults = await parallelWithLimit(exerciseTasks, 3);
+  resultadosGeneracion.push(...exerciseResults);
 
   // Resumen
   const totalGenerados = resultadosGeneracion.reduce(
@@ -348,25 +445,25 @@ async function _doPropagation(classId: number) {
       `${totalFallidos} fallidos de ${resultadosGeneracion.length} temas`,
   );
 
-  // 3. Generar documentación de temas
+  // 3. Generar documentación de temas (PARALELO)
   const hayNuevosTemas = nuevos.length > 0;
   const apiKey = process.env.GEMINI_API_KEY;
-  for (const topicInfo of topicResults) {
+
+  const docTasks = topicResults.map((topicInfo) => async () => {
     const stepLabel = `Documentación: ${topicInfo.originalName}`;
     await updateStep(classId, stepLabel, "running");
 
-    // Verificar si ya existe documentación
     const existingDoc = await prisma.topicDoc.findUnique({
       where: { topicId: topicInfo.id },
     });
     if (existingDoc) {
       await updateStep(classId, stepLabel, "done", "ya existía");
-      continue;
+      return;
     }
 
     if (!apiKey) {
       await updateStep(classId, stepLabel, "done", "sin API key");
-      continue;
+      return;
     }
 
     try {
@@ -430,7 +527,9 @@ Reglas:
       );
       await updateStep(classId, stepLabel, "error", err.message);
     }
-  }
+  });
+
+  await parallelWithLimit(docTasks, 3);
 
   // 4. Actualizar DAG — solo si hay temas nuevos
   if (hayNuevosTemas) {

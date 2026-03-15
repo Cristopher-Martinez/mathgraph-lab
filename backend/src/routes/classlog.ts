@@ -15,12 +15,7 @@ import {
   procesarImagenesBatch,
   validarImagen,
 } from "../services/imageAnalysis";
-import { enqueuePropagation } from "../services/jobQueue";
-import { indexClassTranscript } from "../services/ragService";
-import {
-  analizarTranscripcion,
-  ImagenContexto,
-} from "../services/transcriptAnalysis";
+import { enqueueFullAnalysis, cancelGeneration } from "../services/jobQueue";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
@@ -42,10 +37,6 @@ const LONG_OPERATION_TIMEOUT = 5 * 60 * 1000;
  * - Fallos parciales en imágenes (las que fallan no impiden las demás)
  */
 router.post("/", async (req: Request, res: Response) => {
-  // Extender timeout para operaciones largas
-  req.setTimeout(LONG_OPERATION_TIMEOUT);
-  res.setTimeout(LONG_OPERATION_TIMEOUT);
-
   try {
     const { date, title, transcript, images } = req.body;
 
@@ -75,12 +66,7 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(
-      `[ClassLog] Creando clase: transcripción=${tieneTranscripcion ? `${transcript.length} chars` : "no"}, imágenes=${tieneImagenes ? images.length : 0}`,
-    );
-
-    // 1. Validar imágenes y prepararlas como contexto visual
-    const imagenesContexto: ImagenContexto[] = [];
+    // Validar imágenes antes de crear el registro
     const imagenesData: { url: string; caption: string }[] = [];
     const erroresValidacion: string[] = [];
 
@@ -99,59 +85,28 @@ router.post("/", async (req: Request, res: Response) => {
           erroresValidacion.push(`Imagen ${i + 1}: ${validacion.error}`);
           continue;
         }
-        imagenesContexto.push({
-          base64: img.base64,
-          mimeType: img.mimeType || "image/jpeg",
-        });
         imagenesData.push({
           url: img.base64.substring(0, 100) + "...",
           caption: img.caption || "",
         });
       }
-
-      if (erroresValidacion.length > 0) {
-        console.warn(
-          `[ClassLog] ${erroresValidacion.length} imágenes rechazadas:`,
-          erroresValidacion,
-        );
-      }
     }
 
-    // 2. Analizar transcripción + imágenes como contexto visual unificado.
-    // Las imágenes se envían directamente a Gemini junto con el texto
-    // para que el modelo las interprete como parte de la misma clase.
     const textoTranscripcion = tieneTranscripcion ? transcript.trim() : "";
 
-    let analisisTranscripcion;
-    if (textoTranscripcion.length > 0 || imagenesContexto.length > 0) {
-      // Si solo hay imágenes sin texto, crear un prompt mínimo
-      const textoFinal =
-        textoTranscripcion ||
-        "[Sin transcripción de voz. Analiza únicamente las imágenes adjuntas de la clase.]";
-      analisisTranscripcion = await analizarTranscripcion(
-        textoFinal,
-        imagenesContexto.length > 0 ? imagenesContexto : undefined,
-      );
-    } else {
-      analisisTranscripcion = {
-        temas: [],
-        formulas: [],
-        tiposEjercicio: [],
-        resumen: "Clase registrada sin contenido analizable.",
-        conceptosClave: [],
-        actividades: [],
-      };
-    }
+    console.log(
+      `[ClassLog] Creando clase (async): transcripción=${tieneTranscripcion ? `${textoTranscripcion.length} chars` : "no"}, imágenes=${imagenesData.length}`,
+    );
 
-    // 3. Crear registro en BD
+    // Create minimal record immediately — analysis happens in background
     const classLog = await prisma.classLog.create({
       data: {
         date: new Date(date + "T12:00:00"),
         transcript: textoTranscripcion,
-        summary: analisisTranscripcion.resumen,
-        topics: JSON.stringify(analisisTranscripcion.temas),
-        formulas: JSON.stringify(analisisTranscripcion.formulas),
-        activities: JSON.stringify(analisisTranscripcion.actividades),
+        summary: "Procesando...",
+        topics: "[]",
+        formulas: "[]",
+        activities: "[]",
         images: {
           create: imagenesData.map((img) => ({
             url: img.url,
@@ -162,43 +117,29 @@ router.post("/", async (req: Request, res: Response) => {
       include: { images: true },
     });
 
-    // 4. Propagar cambios vía cola de trabajos (BullMQ con fallback)
-    enqueuePropagation(classLog.id).catch((err) => {
-      console.error("[ClassLog] Error encolando propagación:", err);
+    // Enqueue full analysis + propagation in background
+    enqueueFullAnalysis(
+      classLog.id,
+      textoTranscripcion,
+      tieneImagenes ? images.filter((img: any) => img.base64) : undefined,
+    ).catch((err) => {
+      console.error("[ClassLog] Error encolando análisis:", err);
     });
 
-    // 5. Indexar transcripción para RAG (fire-and-forget)
-    if (textoTranscripcion.length > 0) {
-      indexClassTranscript(
-        classLog.id,
-        textoTranscripcion,
-        analisisTranscripcion.resumen,
-      ).catch((err) => {
-        console.error(
-          "[ClassLog] Error al indexar para RAG (no bloqueante):",
-          err,
-        );
-      });
-    }
-
-    // 5. Responder con datos completos
+    // Respond immediately — frontend tracks progress via WebSocket
     const respuesta: any = {
       id: classLog.id,
       date: classLog.date,
-      summary: analisisTranscripcion.resumen,
-      temas: analisisTranscripcion.temas,
-      formulas: analisisTranscripcion.formulas,
-      actividades: analisisTranscripcion.actividades,
-      conceptosClave: analisisTranscripcion.conceptosClave,
-      tiposEjercicio: analisisTranscripcion.tiposEjercicio,
+      summary: "Procesando...",
+      temas: [],
+      formulas: [],
+      actividades: [],
       imagenes: classLog.images.length,
+      processing: true,
       stats: {
         longitudTranscripcion: textoTranscripcion.length,
         imagenesRecibidas: tieneImagenes ? images.length : 0,
-        imagenesUsadasComoContexto: imagenesContexto.length,
         imagenesRechazadas: erroresValidacion.length,
-        temasDetectados: analisisTranscripcion.temas.length,
-        formulasExtraidas: analisisTranscripcion.formulas.length,
       },
     };
 
@@ -213,6 +154,20 @@ router.post("/", async (req: Request, res: Response) => {
       .status(500)
       .json({ error: "Error al procesar la clase: " + error.message });
   }
+});
+
+/**
+ * DELETE /class-log/:id/generation
+ * Cancel an in-progress generation
+ */
+router.delete("/:id/generation", async (req: Request, res: Response) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "ID inválido" });
+    return;
+  }
+  await cancelGeneration(id);
+  res.json({ message: "Generación cancelada" });
 });
 
 /**
