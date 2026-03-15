@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MarkdownLatex from "../components/MarkdownLatex";
 import { api } from "../services/api";
@@ -22,6 +22,9 @@ interface WeekTimeline {
 // Tamaño máximo de imagen en bytes (10MB)
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_IMAGES = 20;
+const CLASSES_PER_PAGE = 5;
+const EXERCISES_PER_PAGE = 6;
+const COOLDOWN_SECONDS = 10;
 
 export default function ClassLogPage() {
   const [clases, setClases] = useState<ClassLogEntry[]>([]);
@@ -71,6 +74,9 @@ export default function ClassLogPage() {
   } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const navigate = useNavigate();
+  const [classPage, setClassPage] = useState(1);
+  const [generandoEjercicios, setGenerandoEjercicios] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     cargarClases();
@@ -341,19 +347,40 @@ export default function ClassLogPage() {
     }
   }
 
-  async function generarMasEjercicios(id: number) {
-    try {
-      const result = await api.generateClassExercises(id, 5);
-      if (claseSeleccionada && claseSeleccionada.id === id) {
-        setClaseSeleccionada({
-          ...claseSeleccionada,
-          ejercicios: result.ejercicios,
-        });
+  const generarMasEjercicios = useCallback(
+    async (id: number) => {
+      if (generandoEjercicios || cooldown > 0) return;
+      setGenerandoEjercicios(true);
+      try {
+        const result = await api.generateClassExercises(id);
+        if (claseSeleccionada && claseSeleccionada.id === id) {
+          setClaseSeleccionada({
+            ...claseSeleccionada,
+            ejercicios: [
+              ...(claseSeleccionada.ejercicios || []),
+              ...result.ejercicios,
+            ],
+          });
+        }
+        // Start cooldown
+        setCooldown(COOLDOWN_SECONDS);
+        const interval = setInterval(() => {
+          setCooldown((prev) => {
+            if (prev <= 1) {
+              clearInterval(interval);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } catch (err) {
+        console.error("Error al generar ejercicios:", err);
+      } finally {
+        setGenerandoEjercicios(false);
       }
-    } catch (err) {
-      console.error("Error al generar ejercicios:", err);
-    }
-  }
+    },
+    [generandoEjercicios, cooldown, claseSeleccionada],
+  );
 
   if (loading) {
     return (
@@ -370,6 +397,8 @@ export default function ClassLogPage() {
         clase={claseSeleccionada}
         onVolver={() => setClaseSeleccionada(null)}
         onGenerarEjercicios={() => generarMasEjercicios(claseSeleccionada.id)}
+        generando={generandoEjercicios}
+        cooldown={cooldown}
         navigate={navigate}
       />
     );
@@ -586,67 +615,103 @@ export default function ClassLogPage() {
               </p>
             </div>
           ) : (
-            clases.map((clase) => (
-              <div
-                key={clase.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-5 hover:border-indigo-300 dark:hover:border-indigo-600 cursor-pointer transition-colors relative group">
-                {/* Botones de acción */}
-                <div className="absolute top-3 right-3 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => abrirEdicion(clase, e)}
-                    className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 text-xs font-medium transition-colors">
-                    ✏️ Editar
-                  </button>
-                  <button
-                    onClick={(e) => eliminarClase(clase.id, e)}
-                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/70 text-xs font-medium transition-colors">
-                    🗑️ Borrar
-                  </button>
-                </div>
+            <>
+              {clases
+                .slice(
+                  (classPage - 1) * CLASSES_PER_PAGE,
+                  classPage * CLASSES_PER_PAGE,
+                )
+                .map((clase) => (
+                  <div
+                    key={clase.id}
+                    className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-5 hover:border-indigo-300 dark:hover:border-indigo-600 cursor-pointer transition-colors relative group">
+                    {/* Botones de acción */}
+                    <div className="absolute top-3 right-3 flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => abrirEdicion(clase, e)}
+                        className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 text-xs font-medium transition-colors">
+                        ✏️ Editar
+                      </button>
+                      <button
+                        onClick={(e) => eliminarClase(clase.id, e)}
+                        className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/70 text-xs font-medium transition-colors">
+                        🗑️ Borrar
+                      </button>
+                    </div>
 
-                <div
-                  onClick={() => verDetalle(clase.id)}
-                  className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
-                        {`Clase #${clase.id}`}
-                      </h3>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                        {new Date(clase.date).toLocaleDateString("es-ES", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          timeZone: "UTC",
-                        })}
-                      </span>
-                    </div>
-                    {clase.summary && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                        {clase.summary}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {clase.temas.map((tema, i) => (
-                        <span
-                          key={i}
-                          className="text-xs bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded-full">
-                          {tema}
-                        </span>
-                      ))}
+                    <div
+                      onClick={() => verDetalle(clase.id)}
+                      className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">
+                            {`Clase #${clase.id}`}
+                          </h3>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                            {new Date(clase.date).toLocaleDateString("es-ES", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              timeZone: "UTC",
+                            })}
+                          </span>
+                        </div>
+                        {clase.summary && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                            {clase.summary}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {clase.temas.map((tema, i) => (
+                            <span
+                              key={i}
+                              className="text-xs bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded-full">
+                              {tema}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-3 text-sm text-gray-500 dark:text-gray-400">
+                        {clase.formulas.length > 0 && (
+                          <span>📐 {clase.formulas.length}</span>
+                        )}
+                        {clase.cantidadImagenes > 0 && (
+                          <span>🖼️ {clase.cantidadImagenes}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-3 text-sm text-gray-500 dark:text-gray-400">
-                    {clase.formulas.length > 0 && (
-                      <span>📐 {clase.formulas.length}</span>
-                    )}
-                    {clase.cantidadImagenes > 0 && (
-                      <span>🖼️ {clase.cantidadImagenes}</span>
-                    )}
-                  </div>
+                ))}
+              {/* Pagination controls */}
+              {Math.ceil(clases.length / CLASSES_PER_PAGE) > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-2">
+                  <button
+                    onClick={() => setClassPage((p) => Math.max(1, p - 1))}
+                    disabled={classPage === 1}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    ←
+                  </button>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {classPage} / {Math.ceil(clases.length / CLASSES_PER_PAGE)}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setClassPage((p) =>
+                        Math.min(
+                          Math.ceil(clases.length / CLASSES_PER_PAGE),
+                          p + 1,
+                        ),
+                      )
+                    }
+                    disabled={
+                      classPage >= Math.ceil(clases.length / CLASSES_PER_PAGE)
+                    }
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    →
+                  </button>
                 </div>
-              </div>
-            ))
+              )}
+            </>
           )}
         </div>
       )}
@@ -896,13 +961,39 @@ function DetalleClase({
   clase,
   onVolver,
   onGenerarEjercicios,
+  generando,
+  cooldown,
   navigate,
 }: {
   clase: any;
   onVolver: () => void;
   onGenerarEjercicios: () => void;
+  generando: boolean;
+  cooldown: number;
   navigate: any;
 }) {
+  const [exPage, setExPage] = useState(1);
+  const [diffFilter, setDiffFilter] = useState<string>("all");
+
+  const ejercicios = clase.ejercicios || [];
+  const filteredExercicios =
+    diffFilter === "all"
+      ? ejercicios
+      : ejercicios.filter((ej: any) => {
+          const d = ej.dificultad || ej.difficulty || "";
+          if (diffFilter === "facil") return d === "facil" || d === "easy";
+          if (diffFilter === "medio") return d === "medio" || d === "medium";
+          return d === "dificil" || d === "hard";
+        });
+
+  const totalExPages = Math.ceil(
+    filteredExercicios.length / EXERCISES_PER_PAGE,
+  );
+  const pagedExercicios = filteredExercicios.slice(
+    (exPage - 1) * EXERCISES_PER_PAGE,
+    exPage * EXERCISES_PER_PAGE,
+  );
+
   return (
     <div className="space-y-6">
       {/* Cabecera */}
@@ -1003,17 +1094,46 @@ function DetalleClase({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            ✏️ Ejercicios Generados
+            ✏️ Ejercicios ({ejercicios.length})
           </h2>
           <button
             onClick={onGenerarEjercicios}
-            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-            Generar Más
+            disabled={generando || cooldown > 0}
+            className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            {generando
+              ? "⏳ Generando..."
+              : cooldown > 0
+                ? `⏱️ ${cooldown}s`
+                : "Generar Más"}
           </button>
         </div>
-        {clase.ejercicios?.length > 0 ? (
+
+        {/* Difficulty filter */}
+        {ejercicios.length > 0 && (
+          <div className="flex gap-1.5 mb-3">
+            {([
+              ["all", "Todos"],
+              ["facil", "🟢 Fácil"],
+              ["medio", "🟡 Medio"],
+              ["dificil", "🔴 Difícil"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => { setDiffFilter(key); setExPage(1); }}
+                className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
+                  diffFilter === key
+                    ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
+                    : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pagedExercicios.length > 0 ? (
           <div className="space-y-3">
-            {clase.ejercicios.map((ej: any, i: number) => (
+            {pagedExercicios.map((ej: any, i: number) => (
               <div
                 key={i}
                 className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors">
@@ -1075,8 +1195,30 @@ function DetalleClase({
           </div>
         ) : (
           <p className="text-gray-500 dark:text-gray-400 text-sm">
-            No se han generado ejercicios aún
+            {diffFilter !== "all"
+              ? "No hay ejercicios con esa dificultad"
+              : "No se han generado ejercicios aún"}
           </p>
+        )}
+        {/* Exercise pagination */}
+        {totalExPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-3">
+            <button
+              onClick={() => setExPage((p) => Math.max(1, p - 1))}
+              disabled={exPage === 1}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              ←
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {exPage} / {totalExPages}
+            </span>
+            <button
+              onClick={() => setExPage((p) => Math.min(totalExPages, p + 1))}
+              disabled={exPage >= totalExPages}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              →
+            </button>
+          </div>
         )}
       </div>
 

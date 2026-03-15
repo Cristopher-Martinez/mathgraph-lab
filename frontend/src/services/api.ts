@@ -211,10 +211,9 @@ export const api = {
       method: "DELETE",
     }),
 
-  generateClassExercises: (id: number, cantidad?: number) =>
+  generateClassExercises: (id: number) =>
     request<any>(`/class-log/${id}/generate-exercises`, {
       method: "POST",
-      body: JSON.stringify({ cantidad: cantidad || 5 }),
     }),
 
   getWeeklyTimeline: () => request<any[]>("/class-log/timeline/weekly"),

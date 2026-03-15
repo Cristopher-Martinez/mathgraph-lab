@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
 import {
@@ -6,7 +7,6 @@ import {
   rollbackClass,
 } from "../services/autoPropagation";
 import { reconstruirCurriculo } from "../services/curriculumReconstruction";
-import { generarEjercicios } from "../services/exerciseGeneration";
 import {
   getActiveGenerations,
   getGenerationStatusById,
@@ -21,6 +21,7 @@ import {
   analizarTranscripcion,
   ImagenContexto,
 } from "../services/transcriptAnalysis";
+import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
 
@@ -514,58 +515,86 @@ router.post("/:id/generate-exercises", async (req: Request, res: Response) => {
       return;
     }
 
-    const cantidad = Math.min(req.body.cantidad || 5, 10);
-    const resultado = await generarEjercicios(temas, cantidad);
-
-    // Resolver topics de la BD para asignar correctamente los ejercicios
+    // Resolver topics de la BD
+    const allDbTopics = await prisma.topic.findMany();
     const topicMap = new Map<string, number>();
     for (const tema of temas) {
-      const topic = await prisma.topic.findFirst({
-        where: { name: tema },
-      });
-      if (!topic) {
-        // Buscar case-insensitive manualmente (SQLite no soporta mode)
-        const allTopics = await prisma.topic.findMany();
-        const found = allTopics.find(
-          (t) => t.name.toLowerCase() === tema.toLowerCase(),
-        );
-        if (found) topicMap.set(tema.toLowerCase(), found.id);
-      }
-      if (topic) topicMap.set(tema.toLowerCase(), topic.id);
+      const found = allDbTopics.find(
+        (t) => t.name.toLowerCase() === tema.toLowerCase(),
+      );
+      if (found) topicMap.set(tema.toLowerCase(), found.id);
     }
-    // Fallback: primer topic de la clase
     const fallbackTopicId = topicMap.values().next().value || 1;
 
-    // Guardar ejercicios generados en BD
-    const diffMap: Record<string, string> = {
-      facil: "easy",
-      medio: "medium",
-      dificil: "hard",
-    };
-    const ejerciciosGuardados: any[] = [];
-    for (const ej of resultado.ejercicios) {
-      // Asignar al topic correcto basado en el tipo del ejercicio
-      const tipoNorm = (ej.tipo || "").toLowerCase();
-      const topicId = topicMap.get(tipoNorm) || fallbackTopicId;
+    // Generar 1 ejercicio por tema con dificultad aleatoria
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: "GEMINI_API_KEY no configurada" });
+      return;
+    }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: { temperature: 0.8 },
+    });
 
-      const saved = await prisma.exercise.create({
-        data: {
-          topicId,
-          latex: ej.pregunta,
-          difficulty: diffMap[ej.dificultad] || ej.dificultad,
-          steps: ej.solucion || null,
-          hints: ej.pistas ? JSON.stringify(ej.pistas) : null,
-          generatedByClassId: id,
-        },
+    const diffLabels = ["fácil", "intermedio", "difícil"];
+    const diffKeys = ["easy", "medium", "hard"];
+    const diffEsp = ["facil", "medio", "dificil"];
+    const ejerciciosGuardados: any[] = [];
+
+    for (const tema of temas.slice(0, 10)) {
+      const diffIdx = Math.floor(Math.random() * 3);
+      const topicId = topicMap.get(tema.toLowerCase()) || fallbackTopicId;
+
+      const existing = await prisma.exercise.findMany({
+        where: { topicId },
+        select: { latex: true },
+        take: 20,
       });
-      ejerciciosGuardados.push({ ...ej, id: saved.id });
+      const avoidSection =
+        existing.length > 0
+          ? `\n\nNO repitas estos ejercicios ya existentes:\n${existing.map((e, i) => `${i + 1}. ${e.latex}`).join("\n")}`
+          : "";
+
+      const prompt = `Genera exactamente 1 ejercicio de matemáticas de nivel ${diffLabels[diffIdx]} sobre: ${tema}.\n\nResponde SOLO con JSON válido (sin markdown, sin backticks):\n{\n  "pregunta": "enunciado claro con datos numéricos concretos",\n  "solucion": "resolución paso a paso",\n  "pistas": ["pista 1", "pista 2"]\n}\n\nEl ejercicio debe ser ORIGINAL y DIFERENTE a los existentes.${avoidSection}`;
+
+      try {
+        const result = await model.generateContent(prompt);
+        const parsed = parseGeminiJSON(result.response.text().trim());
+
+        if (parsed?.pregunta && parsed.pregunta.trim().length >= 5) {
+          const saved = await prisma.exercise.create({
+            data: {
+              topicId,
+              latex: parsed.pregunta,
+              difficulty: diffKeys[diffIdx],
+              steps: parsed.solucion || null,
+              hints: parsed.pistas ? JSON.stringify(parsed.pistas) : null,
+              generatedByClassId: id,
+            },
+          });
+          ejerciciosGuardados.push({
+            id: saved.id,
+            pregunta: parsed.pregunta,
+            solucion: parsed.solucion || "",
+            dificultad: diffEsp[diffIdx],
+            tipo: tema,
+            pistas: parsed.pistas || [],
+          });
+        }
+      } catch (err: any) {
+        console.warn(
+          `[ClassLog] Error generando ejercicio para "${tema}":`,
+          err.message,
+        );
+      }
     }
 
     res.json({
       ejercicios: ejerciciosGuardados,
       total: ejerciciosGuardados.length,
       guardadosEnBD: true,
-      stats: resultado.stats || null,
     });
   } catch (error: any) {
     console.error("Error al generar ejercicios:", error);
