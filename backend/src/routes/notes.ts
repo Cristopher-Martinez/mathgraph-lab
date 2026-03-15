@@ -30,11 +30,28 @@ function parseGeminiJSON(text: string): any {
       result += ch;
     } else if (inString && ch === "\\" && i + 1 < raw.length) {
       const next = raw[i + 1];
-      // Escapes JSON válidos: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
-      if ('"\\\/bfnrtu'.includes(next)) {
+      // Check if this is a LaTeX command (backslash + letter(s))
+      // e.g. \frac, \sqrt, \beta — NOT a JSON escape like \n, \t, \"
+      if (/[a-zA-Z]/.test(next)) {
+        // Peek ahead: if followed by 2+ letters, it's LaTeX (e.g. \frac, \cdot)
+        // Single-letter \n, \t, \r, \b, \f are JSON escapes ONLY if truly standalone
+        let cmdLen = 0;
+        for (let j = i + 1; j < raw.length && /[a-zA-Z]/.test(raw[j]); j++) cmdLen++;
+        if (cmdLen >= 2) {
+          // Multi-letter: definitely LaTeX → double-escape
+          result += "\\\\";
+        } else if ("bfnrt".includes(next)) {
+          // Single valid JSON escape char → keep as-is
+          result += ch;
+        } else {
+          // Single letter but not a JSON escape (e.g. \x raw) → double-escape
+          result += "\\\\";
+        }
+      } else if ('"\\\/'.includes(next) || next === "u") {
+        // Standard JSON escapes: \", \\, \/, \uXXXX
         result += ch;
       } else {
-        // Escape inválido (LaTeX como \frac, \cdot, etc.) → duplicar backslash
+        // Unknown escape → double-escape for safety
         result += "\\\\";
       }
     } else {
@@ -45,7 +62,7 @@ function parseGeminiJSON(text: string): any {
   try {
     return JSON.parse(result);
   } catch (e) {
-    // Último intento: regex simple
+    // Último intento: regex — escape any backslash not followed by standard JSON escape
     const fixed = jsonMatch[0].replace(/\\([^"\\/bfnrtu])/g, "\\\\$1");
     return JSON.parse(fixed);
   }

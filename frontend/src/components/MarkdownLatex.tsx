@@ -14,8 +14,15 @@ export default function MarkdownLatex({ content }: MarkdownLatexProps) {
     const container = containerRef.current;
     container.innerHTML = "";
 
+    // Recover corrupted LaTeX from bad JSON escaping:
+    // \frac in JSON → \f (form feed 0x0C) + "rac" → recover to \frac
+    // \beta in JSON → \b (backspace 0x08) + "eta" → recover to \beta
+    const sanitized = content
+      .replace(/\x0C/g, "\\f")   // form feed → \f (recovers \frac, \flat, etc.)
+      .replace(/\x08/g, "\\b");  // backspace → \b (recovers \beta, \bar, etc.)
+
     // Split content by lines to handle markdown structure
-    const lines = content.split("\n");
+    const lines = sanitized.split("\n");
     let currentParagraph: string[] = [];
 
     const flushParagraph = () => {
