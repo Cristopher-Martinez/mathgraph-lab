@@ -29,6 +29,9 @@ export async function startGeneration(
     for (const name of topicNames) {
       steps.push({ label: `Ejercicios: ${name}`, status: "pending" });
     }
+    for (const name of topicNames) {
+      steps.push({ label: `Documentación: ${name}`, status: "pending" });
+    }
     steps.push({ label: "Reconstruyendo DAG", status: "pending" });
     steps.push({ label: "Auditando DAG", status: "pending" });
     steps.push({ label: "Generando apuntes", status: "pending" });

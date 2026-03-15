@@ -321,13 +321,97 @@ export async function propagateClassChanges(classId: number) {
       `${totalFallidos} fallidos de ${resultadosGeneracion.length} temas`,
   );
 
-  // 3. Actualizar DAG
+  // 3. Generar documentación de temas
+  const apiKey = process.env.GEMINI_API_KEY;
+  for (const topicInfo of topicResults) {
+    const stepLabel = `Documentación: ${topicInfo.originalName}`;
+    await updateStep(classId, stepLabel, "running");
+
+    // Verificar si ya existe documentación
+    const existingDoc = await prisma.topicDoc.findUnique({
+      where: { topicId: topicInfo.id },
+    });
+    if (existingDoc) {
+      await updateStep(classId, stepLabel, "done", "ya existía");
+      continue;
+    }
+
+    if (!apiKey) {
+      await updateStep(classId, stepLabel, "done", "sin API key");
+      continue;
+    }
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      const prompt = `Eres un profesor de matemáticas experto. Genera documentación educativa completa sobre el tema: "${topicInfo.name}".
+
+Responde SOLO en formato JSON válido (sin markdown, sin backticks). La estructura debe ser:
+{
+  "conceptos": "Explicación clara de los conceptos fundamentales del tema. Usa notación matemática cuando sea necesario. Mínimo 3-4 párrafos bien desarrollados.",
+  "ejemplos": [
+    {"titulo": "título corto del ejemplo", "problema": "planteamiento del problema", "solucion": "resolución paso a paso detallada"},
+    {"titulo": "título corto", "problema": "...", "solucion": "..."}
+  ],
+  "casosDeUso": ["aplicación práctica 1 en la vida real", "aplicación práctica 2", "aplicación práctica 3"],
+  "curiosidades": ["dato curioso o histórico 1", "dato curioso 2", "dato curioso 3"]
+}
+
+Reglas:
+- Los conceptos deben ser claros y pedagógicos, apropiados para un estudiante universitario
+- Incluye al menos 3 ejemplos resueltos paso a paso
+- Los casos de uso deben ser aplicaciones reales y relevantes
+- Las curiosidades deben ser datos interesantes, históricos o sorprendentes
+- Usa notación matemática legible (fracciones como a/b, raíces como √, exponentes como x², etc.)
+- Todo en español`;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        await prisma.topicDoc.create({
+          data: {
+            topicId: topicInfo.id,
+            conceptos: parsed.conceptos || "",
+            ejemplos: JSON.stringify(
+              Array.isArray(parsed.ejemplos) ? parsed.ejemplos : [],
+            ),
+            casosDeUso: JSON.stringify(
+              Array.isArray(parsed.casosDeUso) ? parsed.casosDeUso : [],
+            ),
+            curiosidades: JSON.stringify(
+              Array.isArray(parsed.curiosidades) ? parsed.curiosidades : [],
+            ),
+          },
+        });
+        console.log(
+          `[AutoPropagation] ✓ Documentación generada para "${topicInfo.name}"`,
+        );
+        await updateStep(classId, stepLabel, "done");
+      } else {
+        console.warn(
+          `[AutoPropagation] ✗ No se pudo parsear docs para "${topicInfo.name}"`,
+        );
+        await updateStep(classId, stepLabel, "error", "JSON inválido");
+      }
+    } catch (err: any) {
+      console.error(
+        `[AutoPropagation] ✗ Error generando docs para ${topicInfo.name}: ${err.message}`,
+      );
+      await updateStep(classId, stepLabel, "error", err.message);
+    }
+  }
+
+  // 4. Actualizar DAG
   await updateStep(classId, "Reconstruyendo DAG", "running");
   await rebuildDAG();
   await updateStep(classId, "Reconstruyendo DAG", "done");
   await updateStep(classId, "Auditando DAG", "done");
 
-  // Generar apuntes en background
+  // 5. Generar apuntes
   await updateStep(classId, "Generando apuntes", "running");
   try {
     const cls = await prisma.classLog.findUnique({
