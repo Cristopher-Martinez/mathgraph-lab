@@ -399,7 +399,14 @@ router.post("/start", async (req: Request, res: Response) => {
 // Unified answer endpoint — records response, adapts difficulty, accumulates metrics
 router.post("/answer", async (req: Request, res: Response) => {
   try {
-    const { sessionId, correct, timeMs, timeout, hintsUsed: reqHints, score: reqScore } = req.body;
+    const {
+      sessionId,
+      correct,
+      timeMs,
+      timeout,
+      hintsUsed: reqHints,
+      score: reqScore,
+    } = req.body;
     if (!sessionId) {
       res.status(400).json({ error: "sessionId required" });
       return;
@@ -543,13 +550,40 @@ router.post("/next-batch", async (req: Request, res: Response) => {
       const topic = topics[nextTopicIndex];
 
       // Verify topic still exists in DB (may have been deleted via class rollback)
-      const topicExists = await prisma.topic.findUnique({ where: { id: topic.id } });
+      const topicExists = await prisma.topic.findUnique({
+        where: { id: topic.id },
+      });
       if (!topicExists) {
-        console.warn(`[Training] Topic ${topic.id} no longer exists, skipping batch`);
+        console.warn(
+          `[Training] Topic ${topic.id} no longer exists, removing from session`,
+        );
+        session.topics = session.topics.filter((t: any) => t.id !== topic.id);
         session.batchesFetched = (session.batchesFetched || 0) + 1;
         session.batchGenerating = false;
         session.lastSavedAt = Date.now();
-        await redis.setex(`training:${sessionId}`, SESSION_TTL, JSON.stringify(session));
+
+        if (session.topics.length === 0) {
+          session.totalExpected = session.exercisesCompleted; // Force finish
+          await redis.setex(
+            `training:${sessionId}`,
+            SESSION_TTL,
+            JSON.stringify(session),
+          );
+          res.json({
+            exercises: [],
+            finished: true,
+            reason: "all_topics_deleted",
+          });
+          return;
+        }
+
+        session.totalExpected =
+          session.topics.length * session.config.exercisesPerTopic;
+        await redis.setex(
+          `training:${sessionId}`,
+          SESSION_TTL,
+          JSON.stringify(session),
+        );
         res.json({ exercises: [], skipped: true, reason: "topic_deleted" });
         return;
       }
@@ -668,7 +702,7 @@ router.post("/next-batch", async (req: Request, res: Response) => {
   }
 });
 
-// Resume a session
+// Resume a session — filter out stale topics/exercises that were deleted
 router.get("/resume/:sessionId", async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
@@ -680,7 +714,36 @@ router.get("/resume/:sessionId", async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(JSON.parse(raw));
+    const session: SessionState = JSON.parse(raw);
+
+    // Validate that topics still exist in DB
+    const existingTopics = await prisma.topic.findMany({
+      where: { id: { in: session.topics.map((t) => t.id) } },
+      select: { id: true, name: true },
+    });
+    const existingTopicIds = new Set(existingTopics.map((t) => t.id));
+    session.topics = session.topics.filter((t) => existingTopicIds.has(t.id));
+
+    if (session.topics.length === 0) {
+      await redis.del(`training:${sessionId}`);
+      res
+        .status(410)
+        .json({ error: "All topics in this session have been deleted" });
+      return;
+    }
+
+    // Recalculate totalExpected with surviving topics
+    session.totalExpected =
+      session.topics.length * session.config.exercisesPerTopic;
+
+    // Save cleaned session back
+    await redis.setex(
+      `training:${sessionId}`,
+      SESSION_TTL,
+      JSON.stringify(session),
+    );
+
+    res.json(session);
   } catch (err) {
     res.status(500).json({ error: "Failed to resume session" });
   }
@@ -716,8 +779,18 @@ router.post("/finish", async (req: Request, res: Response) => {
         }),
       );
 
-      // Update Progress table for each topic trained
+      // Update Progress table for each topic trained (skip deleted topics)
       for (const topic of session.topics) {
+        const topicExists = await prisma.topic.findUnique({
+          where: { id: topic.id },
+        });
+        if (!topicExists) {
+          console.warn(
+            `[Training] Skipping progress for deleted topic ${topic.id} (${topic.name})`,
+          );
+          continue;
+        }
+
         const topicErrors = session.metrics.errorsByTopic[topic.name] || 0;
         const topicTotal = session.results.filter((r) => {
           const ex = session.exercises.find(

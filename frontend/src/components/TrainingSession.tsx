@@ -32,7 +32,9 @@ export default function TrainingSession({
   const [previousHints, setPreviousHints] = useState<string[]>([]);
   const [studentAttempts, setStudentAttempts] = useState<string[]>([]);
   const [inputMode, setInputMode] = useState<"answer" | "question">("answer");
-  const [loadingSocratic, setLoadingSocratic] = useState(!!initialSession?.config?.socratic);
+  const [loadingSocratic, setLoadingSocratic] = useState(
+    !!initialSession?.config?.socratic,
+  );
   const [streaming, setStreaming] = useState(false);
   const [socraticScore, setSocraticScore] = useState(0);
   const [socraticTotalScore, setSocraticTotalScore] = useState(0);
@@ -100,16 +102,22 @@ export default function TrainingSession({
             setTimeout(() => setLoadingBatch(false), 2000);
             return;
           }
+          if (data.finished) {
+            // All topics deleted or session complete
+            setLoadingBatch(false);
+            return;
+          }
           if (data.skipped) {
-            // Topic was deleted, try next batch immediately
-            console.warn("Topic deleted, fetching next batch");
-            setTimeout(() => setLoadingBatch(false), 500);
+            // Topic was deleted, retry next batch soon
+            setLoadingBatch(false);
             return;
           }
           if (data.exercises?.length > 0) {
             setSession((prev: any) => ({
               ...prev,
               exercises: [...prev.exercises, ...data.exercises],
+              topics: data.topics || prev.topics,
+              totalExpected: data.totalExpected || prev.totalExpected,
             }));
           }
           setLoadingBatch(false);
@@ -126,7 +134,10 @@ export default function TrainingSession({
   // Calculate score for current exercise
   const calculateExerciseScore = () => {
     let score = 100;
-    const hintPenalty = socraticHintsUsed <= 3 ? socraticHintsUsed * 10 : 30 + (socraticHintsUsed - 3) * 5;
+    const hintPenalty =
+      socraticHintsUsed <= 3
+        ? socraticHintsUsed * 10
+        : 30 + (socraticHintsUsed - 3) * 5;
     score -= hintPenalty;
     score -= socraticPartials * 15;
     return Math.max(score, 0);
@@ -147,11 +158,13 @@ export default function TrainingSession({
     setInputMode("answer");
     setStreaming(false);
     setLoadingSocratic(true);
-    setMessages([{
-      role: "tutor",
-      text: `Vamos a resolver paso a paso: **${ex.latex || ex.pregunta || ""}**`,
-      type: "info",
-    }]);
+    setMessages([
+      {
+        role: "tutor",
+        text: `Vamos a resolver paso a paso: **${ex.latex || ex.pregunta || ""}**`,
+        type: "info",
+      },
+    ]);
 
     api
       .tutorStart(ex.id)
@@ -161,7 +174,10 @@ export default function TrainingSession({
         setSocraticSteps(steps);
         setSocraticStep(0);
         const firstQuestion = data.tutorQuestion || steps[0]?.question || "";
-        setMessages(prev => [...prev, { role: "tutor", text: firstQuestion }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: "tutor", text: firstQuestion },
+        ]);
       })
       .catch(() => {
         setSocraticData(null);
@@ -173,22 +189,31 @@ export default function TrainingSession({
     if (!answer.trim() || submitting || !ex) return;
     setSubmitting(true);
     const question = answer.trim();
-    setMessages(prev => [...prev, { role: "student", text: `❓ ${question}` }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "student", text: `❓ ${question}` },
+    ]);
     setAnswer("");
 
     try {
       const result = await api.tutorAsk(ex.id, socraticStep, question);
-      setMessages(prev => [...prev, {
-        role: "tutor",
-        text: result.answer,
-        type: result.isActuallyAnswer ? "hint" : "info",
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: result.answer,
+          type: result.isActuallyAnswer ? "hint" : "info",
+        },
+      ]);
     } catch {
-      setMessages(prev => [...prev, {
-        role: "tutor",
-        text: "Hubo un error al procesar tu pregunta. Intenta reformularla.",
-        type: "incorrect",
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: "Hubo un error al procesar tu pregunta. Intenta reformularla.",
+          type: "incorrect",
+        },
+      ]);
     }
     setSubmitting(false);
   };
@@ -202,36 +227,61 @@ export default function TrainingSession({
 
     setSubmitting(true);
     const studentAnswer = answer.trim();
-    setMessages(prev => [...prev, { role: "student", text: studentAnswer }]);
+    setMessages((prev) => [...prev, { role: "student", text: studentAnswer }]);
     setAnswer("");
     setHintLevel(0);
 
     try {
-      const response = await api.tutorAnswerStream(ex.id, socraticStep, studentAnswer);
+      const response = await api.tutorAnswerStream(
+        ex.id,
+        socraticStep,
+        studentAnswer,
+      );
 
       if (!response.ok || !response.body) {
         // Fallback to non-streaming
-        const result = await api.tutorAnswer(ex.id, socraticStep, studentAnswer);
-        const msgType = result.correct ? "correct" : result.partial ? "partial" : "incorrect";
-        setMessages(prev => [...prev, { role: "tutor", text: result.feedback, type: msgType }]);
+        const result = await api.tutorAnswer(
+          ex.id,
+          socraticStep,
+          studentAnswer,
+        );
+        const msgType = result.correct
+          ? "correct"
+          : result.partial
+            ? "partial"
+            : "incorrect";
+        setMessages((prev) => [
+          ...prev,
+          { role: "tutor", text: result.feedback, type: msgType },
+        ]);
 
-        if (result.partial) setSocraticPartials(p => p + 1);
+        if (result.partial) setSocraticPartials((p) => p + 1);
 
         if (result.correct || result.partial) {
           if (result.completed) {
             setSocraticCompleted(true);
             setSocraticScore(calculateExerciseScore());
-            setMessages(prev => [...prev, { role: "tutor", text: "🎉 ¡Excelente! Has completado todos los pasos.", type: "info" }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "tutor",
+                text: "🎉 ¡Excelente! Has completado todos los pasos.",
+                type: "info",
+              },
+            ]);
           } else if (result.nextStep !== undefined) {
             setSocraticStep(result.nextStep);
             setPreviousHints([]);
             setStudentAttempts([]);
             if (result.tutorQuestion) {
-              setMessages(prev => [...prev, { role: "tutor", text: result.tutorQuestion }]);
+              setMessages((prev) => [
+                ...prev,
+                { role: "tutor", text: result.tutorQuestion },
+              ]);
             }
           }
         } else {
-          setStudentAttempts(prev => [...prev, studentAnswer]);
+          setStudentAttempts((prev) => [...prev, studentAnswer]);
         }
         setSubmitting(false);
         return;
@@ -246,7 +296,10 @@ export default function TrainingSession({
       let lastEventType = "";
 
       setStreaming(true);
-      setMessages(prev => [...prev, { role: "tutor", text: "", type: "info" }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "tutor", text: "", type: "info" },
+      ]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -264,26 +317,35 @@ export default function TrainingSession({
               const parsed = JSON.parse(line.slice(6));
               if (lastEventType === "result") {
                 resultData = parsed;
-                setMessages(prev => {
+                setMessages((prev) => {
                   const updated = [...prev];
                   const lastIdx = updated.length - 1;
                   updated[lastIdx] = {
                     ...updated[lastIdx],
-                    type: resultData.correct ? "correct" : resultData.partial ? "partial" : "incorrect",
+                    type: resultData.correct
+                      ? "correct"
+                      : resultData.partial
+                        ? "partial"
+                        : "incorrect",
                   };
                   return updated;
                 });
-              } else if (lastEventType === "chunk" && parsed.text !== undefined) {
+              } else if (
+                lastEventType === "chunk" &&
+                parsed.text !== undefined
+              ) {
                 feedbackText += parsed.text;
                 const currentText = feedbackText;
-                setMessages(prev => {
+                setMessages((prev) => {
                   const updated = [...prev];
                   const lastIdx = updated.length - 1;
                   updated[lastIdx] = { ...updated[lastIdx], text: currentText };
                   return updated;
                 });
               }
-            } catch { /* skip malformed */ }
+            } catch {
+              /* skip malformed */
+            }
           }
         }
       }
@@ -291,32 +353,45 @@ export default function TrainingSession({
       setStreaming(false);
 
       if (resultData) {
-        if (resultData.partial) setSocraticPartials(p => p + 1);
+        if (resultData.partial) setSocraticPartials((p) => p + 1);
 
         if (resultData.correct || resultData.partial) {
           if (resultData.completed) {
             setSocraticCompleted(true);
             setSocraticScore(calculateExerciseScore());
-            setMessages(prev => [...prev, { role: "tutor", text: "🎉 ¡Excelente! Has completado todos los pasos.", type: "info" }]);
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "tutor",
+                text: "🎉 ¡Excelente! Has completado todos los pasos.",
+                type: "info",
+              },
+            ]);
           } else if (resultData.nextStep !== undefined) {
             setSocraticStep(resultData.nextStep);
             setPreviousHints([]);
             setStudentAttempts([]);
             if (resultData.tutorQuestion) {
-              setMessages(prev => [...prev, { role: "tutor", text: resultData.tutorQuestion }]);
+              setMessages((prev) => [
+                ...prev,
+                { role: "tutor", text: resultData.tutorQuestion },
+              ]);
             }
           }
         } else {
-          setStudentAttempts(prev => [...prev, studentAnswer]);
+          setStudentAttempts((prev) => [...prev, studentAnswer]);
         }
       }
     } catch {
       setStreaming(false);
-      setMessages(prev => [...prev, {
-        role: "tutor",
-        text: "Error al procesar la respuesta. Intenta de nuevo.",
-        type: "incorrect",
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: "Error al procesar la respuesta. Intenta de nuevo.",
+          type: "incorrect",
+        },
+      ]);
     } finally {
       setSubmitting(false);
     }
@@ -329,31 +404,44 @@ export default function TrainingSession({
     setHintLevel(newLevel);
 
     try {
-      const result = await api.tutorHint(ex.id, socraticStep, newLevel, previousHints, studentAttempts);
-      setPreviousHints(prev => [...prev, result.hint]);
-      setMessages(prev => [...prev, {
-        role: "tutor",
-        text: `💡 Pista ${newLevel}: ${result.hint}`,
-        type: "hint",
-      }]);
-      setSocraticHintsUsed(h => h + 1);
+      const result = await api.tutorHint(
+        ex.id,
+        socraticStep,
+        newLevel,
+        previousHints,
+        studentAttempts,
+      );
+      setPreviousHints((prev) => [...prev, result.hint]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: `💡 Pista ${newLevel}: ${result.hint}`,
+          type: "hint",
+        },
+      ]);
+      setSocraticHintsUsed((h) => h + 1);
     } catch {
       // Fallback: local hints
       const step = socraticSteps[socraticStep];
       const hints = step?.hints || [];
       const idx = Math.min(newLevel - 1, hints.length - 1);
-      const hint = hints.length > 0
-        ? hints[idx]
-        : newLevel <= 2
-          ? "Piensa en las propiedades matemáticas que se aplican."
-          : `Pista directa: la respuesta es "${step?.expected || ""}".`;
-      setPreviousHints(prev => [...prev, hint]);
-      setMessages(prev => [...prev, {
-        role: "tutor",
-        text: `💡 Pista ${newLevel}: ${hint}`,
-        type: "hint",
-      }]);
-      setSocraticHintsUsed(h => h + 1);
+      const hint =
+        hints.length > 0
+          ? hints[idx]
+          : newLevel <= 2
+            ? "Piensa en las propiedades matemáticas que se aplican."
+            : `Pista directa: la respuesta es "${step?.expected || ""}".`;
+      setPreviousHints((prev) => [...prev, hint]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "tutor",
+          text: `💡 Pista ${newLevel}: ${hint}`,
+          type: "hint",
+        },
+      ]);
+      setSocraticHintsUsed((h) => h + 1);
     }
     setSubmitting(false);
   };
@@ -361,7 +449,7 @@ export default function TrainingSession({
   const handleSocraticExerciseComplete = async (completed: boolean) => {
     const timeMs = Date.now() - exerciseStartRef.current;
     const exerciseScore = calculateExerciseScore();
-    setSocraticTotalScore(prev => prev + exerciseScore);
+    setSocraticTotalScore((prev) => prev + exerciseScore);
 
     try {
       const result = await api.answerTraining({
@@ -383,7 +471,12 @@ export default function TrainingSession({
 
       if (result.finished) {
         setTimeout(
-          () => onFinish({ ...session, metrics: result.metrics, socraticTotalScore: socraticTotalScore + exerciseScore }),
+          () =>
+            onFinish({
+              ...session,
+              metrics: result.metrics,
+              socraticTotalScore: socraticTotalScore + exerciseScore,
+            }),
           1500,
         );
       }
@@ -636,7 +729,10 @@ export default function TrainingSession({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1">
-                      {Array.from({ length: socraticSteps.length || socraticData.totalSteps || 3 }).map((_, i) => (
+                      {Array.from({
+                        length:
+                          socraticSteps.length || socraticData.totalSteps || 3,
+                      }).map((_, i) => (
                         <div
                           key={i}
                           className={`w-6 h-1.5 rounded-full ${
@@ -650,7 +746,8 @@ export default function TrainingSession({
                       ))}
                     </div>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
-                      Paso {socraticStep + 1}/{socraticSteps.length || socraticData.totalSteps || "?"}
+                      Paso {socraticStep + 1}/
+                      {socraticSteps.length || socraticData.totalSteps || "?"}
                     </span>
                   </div>
                   <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
@@ -661,22 +758,25 @@ export default function TrainingSession({
                 {/* Chat conversation */}
                 <div className="bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 space-y-3 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
                   {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === "student" ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
-                        msg.role === "student"
-                          ? "bg-purple-600 text-white"
-                          : msg.type === "correct"
-                            ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
-                            : msg.type === "partial"
-                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
-                              : msg.type === "incorrect"
-                                ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
-                                : msg.type === "hint"
-                                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
-                                  : msg.type === "info"
-                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
-                                    : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700"
-                      }`}>
+                    <div
+                      key={i}
+                      className={`flex ${msg.role === "student" ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
+                          msg.role === "student"
+                            ? "bg-purple-600 text-white"
+                            : msg.type === "correct"
+                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
+                              : msg.type === "partial"
+                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
+                                : msg.type === "incorrect"
+                                  ? "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
+                                  : msg.type === "hint"
+                                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
+                                    : msg.type === "info"
+                                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
+                                      : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700"
+                        }`}>
                         <div className="font-medium text-xs mb-1 opacity-70">
                           {msg.role === "student" ? "Tú" : "🎓 Tutor"}
                         </div>
@@ -684,9 +784,18 @@ export default function TrainingSession({
                           <MarkdownLatex content={msg.text} />
                         ) : (
                           <span className="inline-flex items-center gap-1 py-1">
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <span className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                            <span
+                              className="w-2 h-2 bg-current rounded-full animate-bounce"
+                              style={{ animationDelay: "0ms" }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-current rounded-full animate-bounce"
+                              style={{ animationDelay: "150ms" }}
+                            />
+                            <span
+                              className="w-2 h-2 bg-current rounded-full animate-bounce"
+                              style={{ animationDelay: "300ms" }}
+                            />
                           </span>
                         )}
                       </div>
@@ -725,8 +834,17 @@ export default function TrainingSession({
                     type="text"
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !submitting && !streaming && handleSocraticSubmit()}
-                    placeholder={inputMode === "answer" ? "Escribe tu respuesta..." : "Haz una pregunta al tutor"}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      !submitting &&
+                      !streaming &&
+                      handleSocraticSubmit()
+                    }
+                    placeholder={
+                      inputMode === "answer"
+                        ? "Escribe tu respuesta..."
+                        : "Haz una pregunta al tutor"
+                    }
                     className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     disabled={submitting || streaming}
                   />
@@ -734,9 +852,15 @@ export default function TrainingSession({
                     onClick={handleSocraticSubmit}
                     disabled={submitting || streaming || !answer.trim()}
                     className={`w-full sm:w-auto px-4 py-2 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-colors ${
-                      inputMode === "answer" ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"
+                      inputMode === "answer"
+                        ? "bg-purple-600 hover:bg-purple-700"
+                        : "bg-blue-600 hover:bg-blue-700"
                     }`}>
-                    {submitting ? "..." : inputMode === "answer" ? "Enviar" : "Preguntar"}
+                    {submitting
+                      ? "..."
+                      : inputMode === "answer"
+                        ? "Enviar"
+                        : "Preguntar"}
                   </button>
                 </div>
 
@@ -746,7 +870,8 @@ export default function TrainingSession({
                     onClick={handleSocraticHint}
                     disabled={submitting || streaming}
                     className="px-4 py-2 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/70 text-sm font-medium transition-colors disabled:opacity-50">
-                    💡 Pista {socraticHintsUsed > 0 ? `(${socraticHintsUsed})` : ""}
+                    💡 Pista{" "}
+                    {socraticHintsUsed > 0 ? `(${socraticHintsUsed})` : ""}
                   </button>
                   <span className="text-xs text-gray-400 dark:text-gray-500">
                     Pistas: -10pts c/u • Parciales: -15pts
@@ -767,7 +892,8 @@ export default function TrainingSession({
                   </div>
                   {socraticTotalScore > 0 && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Puntaje acumulado: {socraticTotalScore + socraticScore} pts
+                      Puntaje acumulado: {socraticTotalScore + socraticScore}{" "}
+                      pts
                     </div>
                   )}
                 </div>

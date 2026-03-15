@@ -21,8 +21,12 @@ export default function TrainingPage() {
         .then((data) => {
           setResumePrompt(data);
         })
-        .catch(() => {
+        .catch((err) => {
           localStorage.removeItem("training_session_id");
+          // 410 = all topics deleted, show nothing
+          if (err?.status === 410 || err?.message?.includes("deleted")) {
+            console.warn("Training session expired: topics were deleted");
+          }
         });
     }
   }, []);

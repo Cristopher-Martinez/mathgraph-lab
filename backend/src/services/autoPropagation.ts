@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "../prismaClient";
 import { generarEjercicios } from "./exerciseGeneration";
+import { getRedis } from "./redisClient";
 import {
   completeGeneration,
   startGeneration,
@@ -1015,14 +1016,18 @@ export async function rollbackClass(classId: number) {
       where: { generatedByClassId: classId },
       select: { id: true },
     });
-    const exerciseIds = exercisesOfClass.map(e => e.id);
+    const exerciseIds = exercisesOfClass.map((e) => e.id);
     if (exerciseIds.length > 0) {
-      await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: exerciseIds } } });
+      await tx.exerciseTip.deleteMany({
+        where: { exerciseId: { in: exerciseIds } },
+      });
     }
     const deletedExercises = await tx.exercise.deleteMany({
       where: { generatedByClassId: classId },
     });
-    console.log(`[Rollback] Eliminados ${deletedExercises.count} ejercicios y sus tips`);
+    console.log(
+      `[Rollback] Eliminados ${deletedExercises.count} ejercicios y sus tips`,
+    );
 
     // 2. Eliminar dependencias generadas por esta clase
     const deletedDependencies = await tx.topicDependency.deleteMany({
@@ -1082,7 +1087,9 @@ export async function rollbackClass(classId: number) {
             select: { id: true },
           });
           if (topicExercises.length > 0) {
-            await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: topicExercises.map(e => e.id) } } });
+            await tx.exerciseTip.deleteMany({
+              where: { exerciseId: { in: topicExercises.map((e) => e.id) } },
+            });
           }
           // Eliminar documentación del topic
           await tx.topicDoc.deleteMany({ where: { topicId: topic.id } });
@@ -1118,6 +1125,26 @@ export async function rollbackClass(classId: number) {
 
   // 8. Reconstruir DAG después del rollback
   await rebuildDAG();
+
+  // 9. Invalidar caches de Redis relacionados a topics borrados
+  try {
+    const redis = getRedis();
+    const topicsCreated = await prisma.topic.findMany({
+      where: { createdByClassId: classId },
+      select: { id: true },
+    });
+    // These topics were already deleted in the transaction, but clear any prior cache
+    for (const t of topicsCreated) {
+      await redis.del(`topicPrereq:${t.id}`).catch(() => {});
+    }
+    // Clear generation caches for deleted topics (pattern-based)
+    const keys = await redis.keys("genCache:*").catch(() => [] as string[]);
+    for (const key of keys) {
+      await redis.del(key).catch(() => {});
+    }
+  } catch {
+    // Redis may not be available, rollback still succeeded
+  }
 
   console.log(`[Rollback] Rollback completado para clase ${classId}`);
 }

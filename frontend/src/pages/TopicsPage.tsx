@@ -54,7 +54,9 @@ export default function TopicsPage() {
   // Topic documentation state
   const [topicDocs, setTopicDocs] = useState<any>(null);
   const [docsLoading, setDocsLoading] = useState(false);
-  const [docsTab, setDocsTab] = useState<"conceptos" | "ejemplos" | "casos" | "curiosidades">("conceptos");
+  const [docsTab, setDocsTab] = useState<
+    "conceptos" | "ejemplos" | "casos" | "curiosidades"
+  >("conceptos");
 
   useEffect(() => {
     if (id) {
@@ -69,9 +71,15 @@ export default function TopicsPage() {
           setDocsLoading(true);
           setTopicDocs(null);
           setDocsTab("conceptos");
-          api.getTopicDocs(data.name).then(setTopicDocs).catch(() => {}).finally(() => setDocsLoading(false));
+          api
+            .getTopicDocs(data.name)
+            .then(setTopicDocs)
+            .catch(() => {})
+            .finally(() => setDocsLoading(false));
         })
-        .catch(() => {});
+        .catch(() => {
+          setTopic(null);
+        });
     } else {
       api
         .getClassLogs()
@@ -113,7 +121,11 @@ export default function TopicsPage() {
       setTipsLoading(true);
       setExerciseTips(null);
       setNotesPage(0);
-      api.getExerciseTips(ex.id).then(setExerciseTips).catch(() => {}).finally(() => setTipsLoading(false));
+      api
+        .getExerciseTips(ex.id)
+        .then(setExerciseTips)
+        .catch(() => {})
+        .finally(() => setTipsLoading(false));
     }
   };
 
@@ -240,47 +252,99 @@ export default function TopicsPage() {
         {(tipsLoading || exerciseTips) && (
           <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg">
             <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-cyan-800 dark:text-cyan-200 select-none flex items-center gap-2">
-              <span>💡</span> Consejos para resolver {exerciseTips && <span className="text-xs text-cyan-500">({exerciseTips.tips.length})</span>} {tipsLoading && <span className="ml-1 text-xs text-cyan-500">cargando...</span>}
+              <span>💡</span> Consejos para resolver{" "}
+              {exerciseTips && (
+                <span className="text-xs text-cyan-500">
+                  ({exerciseTips.tips.length})
+                </span>
+              )}{" "}
+              {tipsLoading && (
+                <span className="ml-1 text-xs text-cyan-500">cargando...</span>
+              )}
             </summary>
             {exerciseTips && (
               <div className="px-4 pb-4 space-y-2 border-t border-cyan-200 dark:border-cyan-800 pt-3">
                 {exerciseTips.tips.map((tip: any, i: number) => (
                   <div key={i} className="flex items-start gap-2">
-                    <span className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                      tip.source === "clase" ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200" : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
-                    }`}>{i + 1}</span>
+                    <span
+                      className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                        tip.source === "clase"
+                          ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200"
+                          : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
+                      }`}>
+                      {i + 1}
+                    </span>
                     <div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">{tip.text}</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        {tip.text}
+                      </p>
                       {tip.source === "clase" && (
-                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">📝 Basado en tus clases</span>
+                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                          📝 Basado en tus clases
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
                 {exerciseTips.classContext.length > 0 && (
                   <details className="mt-2">
-                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">📚 Notas del profesor ({exerciseTips.classContext.length})</summary>
+                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">
+                      📚 Notas del profesor ({exerciseTips.classContext.length})
+                    </summary>
                     <div className="mt-2 space-y-2">
-                      {exerciseTips.classContext.slice(notesPage * NOTES_PER_PAGE, (notesPage + 1) * NOTES_PER_PAGE).map((note: any, i: number) => (
-                        <div key={i} className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                          <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">{note.titulo}</p>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1"><MarkdownLatex content={note.contenido} /></div>
-                        </div>
-                      ))}
+                      {exerciseTips.classContext
+                        .slice(
+                          notesPage * NOTES_PER_PAGE,
+                          (notesPage + 1) * NOTES_PER_PAGE,
+                        )
+                        .map((note: any, i: number) => (
+                          <div
+                            key={i}
+                            className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
+                              {note.titulo}
+                            </p>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              <MarkdownLatex content={note.contenido} />
+                            </div>
+                          </div>
+                        ))}
                       {exerciseTips.classContext.length > NOTES_PER_PAGE && (
                         <div className="flex items-center justify-between pt-1">
                           <button
-                            onClick={() => setNotesPage(p => Math.max(0, p - 1))}
+                            onClick={() =>
+                              setNotesPage((p) => Math.max(0, p - 1))
+                            }
                             disabled={notesPage === 0}
                             className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
                             ← Anterior
                           </button>
                           <span className="text-xs text-purple-500 dark:text-purple-400">
-                            {notesPage + 1} / {Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE)}
+                            {notesPage + 1} /{" "}
+                            {Math.ceil(
+                              exerciseTips.classContext.length / NOTES_PER_PAGE,
+                            )}
                           </span>
                           <button
-                            onClick={() => setNotesPage(p => Math.min(Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1, p + 1))}
-                            disabled={notesPage >= Math.ceil(exerciseTips.classContext.length / NOTES_PER_PAGE) - 1}
+                            onClick={() =>
+                              setNotesPage((p) =>
+                                Math.min(
+                                  Math.ceil(
+                                    exerciseTips.classContext.length /
+                                      NOTES_PER_PAGE,
+                                  ) - 1,
+                                  p + 1,
+                                ),
+                              )
+                            }
+                            disabled={
+                              notesPage >=
+                              Math.ceil(
+                                exerciseTips.classContext.length /
+                                  NOTES_PER_PAGE,
+                              ) -
+                                1
+                            }
                             className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
                             Siguiente →
                           </button>
@@ -492,6 +556,18 @@ export default function TopicsPage() {
   }
 
   // ─── Topic Detail: Overview (Formulas + Difficulty Cards) ─
+  if (id && !topic) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">Este tema ya no existe.</p>
+        <p className="text-sm text-gray-400 dark:text-gray-500 mb-6">Es posible que la clase asociada haya sido eliminada.</p>
+        <Link to="/topics" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          ← Volver a Temas
+        </Link>
+      </div>
+    );
+  }
+
   if (id && topic) {
     return (
       <div className="space-y-6">
@@ -535,23 +611,27 @@ export default function TopicsPage() {
 
         {/* Documentación del tema */}
         <div>
-          <h2 className="text-xl font-semibold mb-3 dark:text-gray-100">📚 Documentación</h2>
+          <h2 className="text-xl font-semibold mb-3 dark:text-gray-100">
+            📚 Documentación
+          </h2>
 
           {docsLoading ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
               <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-3"></div>
-              <p className="text-gray-500 dark:text-gray-400">Generando documentación con IA...</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                Generando documentación con IA...
+              </p>
             </div>
           ) : topicDocs ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               {/* Tabs */}
               <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-                {([
-                  { key: "conceptos" as const, label: "📖 Conceptos", },
-                  { key: "ejemplos" as const, label: "✏️ Ejemplos", },
-                  { key: "casos" as const, label: "🌍 Casos de Uso", },
-                  { key: "curiosidades" as const, label: "💡 Curiosidades", },
-                ]).map(tab => (
+                {[
+                  { key: "conceptos" as const, label: "📖 Conceptos" },
+                  { key: "ejemplos" as const, label: "✏️ Ejemplos" },
+                  { key: "casos" as const, label: "🌍 Casos de Uso" },
+                  { key: "curiosidades" as const, label: "💡 Curiosidades" },
+                ].map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setDocsTab(tab.key)}
@@ -576,19 +656,25 @@ export default function TopicsPage() {
                 {docsTab === "ejemplos" && (
                   <div className="space-y-4">
                     {topicDocs.ejemplos.map((ej: any, i: number) => (
-                      <div key={i} className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                      <div
+                        key={i}
+                        className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
                         <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 font-medium text-indigo-800 dark:text-indigo-300 text-sm">
                           Ejemplo {i + 1}: {ej.titulo}
                         </div>
                         <div className="p-4 space-y-3">
                           <div>
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Problema</span>
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                              Problema
+                            </span>
                             <div className="mt-1 text-gray-700 dark:text-gray-300">
                               <MarkdownLatex content={ej.problema} />
                             </div>
                           </div>
                           <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Solución</span>
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                              Solución
+                            </span>
                             <div className="mt-1 text-gray-700 dark:text-gray-300">
                               <MarkdownLatex content={ej.solucion} />
                             </div>
@@ -597,7 +683,9 @@ export default function TopicsPage() {
                       </div>
                     ))}
                     {topicDocs.ejemplos.length === 0 && (
-                      <p className="text-gray-400 dark:text-gray-500 text-sm">No hay ejemplos disponibles.</p>
+                      <p className="text-gray-400 dark:text-gray-500 text-sm">
+                        No hay ejemplos disponibles.
+                      </p>
                     )}
                   </div>
                 )}
@@ -605,11 +693,15 @@ export default function TopicsPage() {
                 {docsTab === "casos" && (
                   <div className="space-y-3">
                     {topicDocs.casosDeUso.map((caso: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                      <div
+                        key={i}
+                        className="flex items-start gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
                         <span className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 flex items-center justify-center text-sm font-bold">
                           {i + 1}
                         </span>
-                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-1">{caso}</p>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-1">
+                          {caso}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -618,9 +710,13 @@ export default function TopicsPage() {
                 {docsTab === "curiosidades" && (
                   <div className="space-y-3">
                     {topicDocs.curiosidades.map((cur: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800/40">
+                      <div
+                        key={i}
+                        className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800/40">
                         <span className="text-xl flex-shrink-0">💡</span>
-                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-0.5">{cur}</p>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm pt-0.5">
+                          {cur}
+                        </p>
                       </div>
                     ))}
                   </div>
