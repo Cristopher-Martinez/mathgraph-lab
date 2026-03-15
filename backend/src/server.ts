@@ -67,9 +67,15 @@ app.get("/health", (_req, res) => {
 });
 
 // Serve frontend static files in production (BEFORE auth — login page must load)
+const frontendPath = path.join(__dirname, "../../frontend/dist");
 if (process.env.NODE_ENV === "production") {
-  const frontendPath = path.join(__dirname, "../../frontend/dist");
   app.use(express.static(frontendPath));
+
+  // SPA catch-all: serve index.html for non-API routes (BEFORE auth)
+  // This ensures direct navigation/refresh to /practice, /dashboard, etc. works
+  app.get(/^\/(?!api|auth|topics|exercises|exercise|formulas|ai|progress|training|tutor|chat|class-log|notes|health|socket\.io).*/, (_req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
+  });
 }
 
 // Protected routes — require valid session
@@ -97,14 +103,6 @@ app.use("/api/training", trainingRouter);
 app.use("/api/tutor", tutorRouter);
 app.use("/api/class-log", classlogRouter);
 app.use("/api/notes", notesRouter);
-
-// SPA catch-all route - MUST be last (after API routes, serves index.html for client routing)
-if (process.env.NODE_ENV === "production") {
-  const frontendPath = path.join(__dirname, "../../frontend/dist");
-  app.get("*", (_req, res) => {
-    res.sendFile(path.join(frontendPath, "index.html"));
-  });
-}
 
 server.listen(PORT, async () => {
   console.log(`\x1b[32m✓ API running on http://localhost:${PORT}\x1b[0m`);
