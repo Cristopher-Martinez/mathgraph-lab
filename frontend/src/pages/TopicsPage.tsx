@@ -57,6 +57,10 @@ export default function TopicsPage() {
   const [docsTab, setDocsTab] = useState<
     "conceptos" | "ejemplos" | "casos" | "curiosidades"
   >("conceptos");
+  const [ejemploIndex, setEjemploIndex] = useState(0);
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(
+    new Set([0]),
+  );
 
   useEffect(() => {
     if (id) {
@@ -665,48 +669,175 @@ export default function TopicsPage() {
 
               {/* Tab content */}
               <div className="p-5">
-                {docsTab === "conceptos" && (
-                  <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
-                    <MarkdownLatex content={topicDocs.conceptos} />
-                  </div>
-                )}
+                {docsTab === "conceptos" && (() => {
+                  // Split conceptos into sections by double newline or markdown headings
+                  const raw = topicDocs.conceptos || "";
+                  const sections = raw
+                    .split(/\n(?=#{1,3}\s)|(?:\n\s*\n)/)
+                    .map((s: string) => s.trim())
+                    .filter((s: string) => s.length > 0);
 
-                {docsTab === "ejemplos" && (
-                  <div className="space-y-4">
-                    {topicDocs.ejemplos.map((ej: any, i: number) => (
-                      <div
-                        key={i}
-                        className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 font-medium text-indigo-800 dark:text-indigo-300 text-sm">
-                          Ejemplo {i + 1}: {ej.titulo}
+                  const toggleSection = (idx: number) => {
+                    setExpandedSections((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(idx)) next.delete(idx);
+                      else next.add(idx);
+                      return next;
+                    });
+                  };
+
+                  if (sections.length <= 1) {
+                    return (
+                      <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed">
+                        <MarkdownLatex content={raw} />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => setExpandedSections(new Set(sections.map((_: string, i: number) => i)))}
+                          className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline">
+                          Expandir todo
+                        </button>
+                        <span className="text-gray-300 dark:text-gray-600">|</span>
+                        <button
+                          onClick={() => setExpandedSections(new Set())}
+                          className="text-xs text-indigo-500 dark:text-indigo-400 hover:underline">
+                          Colapsar todo
+                        </button>
+                      </div>
+                      {sections.map((section: string, idx: number) => {
+                        const isExpanded = expandedSections.has(idx);
+                        const headingMatch = section.match(/^(#{1,3})\s+(.+)/);
+                        const title = headingMatch
+                          ? headingMatch[2]
+                          : section.length > 80
+                            ? section.slice(0, 80) + "..."
+                            : section.split("\n")[0];
+                        const content = headingMatch
+                          ? section.replace(/^#{1,3}\s+.+\n?/, "").trim()
+                          : section;
+
+                        return (
+                          <div
+                            key={idx}
+                            className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                            <button
+                              onClick={() => toggleSection(idx)}
+                              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                              <span className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                                {title}
+                              </span>
+                              <span
+                                className={`text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}>
+                                ▼
+                              </span>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-sm leading-relaxed border-t border-gray-100 dark:border-gray-700 pt-3">
+                                <MarkdownLatex content={content || section} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {docsTab === "ejemplos" && (() => {
+                  const ejemplos = topicDocs.ejemplos || [];
+                  if (ejemplos.length === 0) {
+                    return (
+                      <p className="text-gray-400 dark:text-gray-500 text-sm">
+                        No hay ejemplos disponibles.
+                      </p>
+                    );
+                  }
+                  const safeIndex = Math.min(ejemploIndex, ejemplos.length - 1);
+                  const ej = ejemplos[safeIndex];
+
+                  return (
+                    <div>
+                      {/* Carousel controls */}
+                      <div className="flex items-center justify-between mb-4">
+                        <button
+                          onClick={() => setEjemploIndex((i) => Math.max(0, i - 1))}
+                          disabled={safeIndex === 0}
+                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                          ←
+                        </button>
+                        <div className="flex items-center gap-2">
+                          {ejemplos.map((_: any, i: number) => (
+                            <button
+                              key={i}
+                              onClick={() => setEjemploIndex(i)}
+                              aria-label={`Ejemplo ${i + 1}`}
+                              className={`w-2.5 h-2.5 rounded-full transition-all ${
+                                i === safeIndex
+                                  ? "bg-indigo-500 scale-125"
+                                  : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400"
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-2 text-xs text-gray-400">
+                            {safeIndex + 1}/{ejemplos.length}
+                          </span>
                         </div>
-                        <div className="p-4 space-y-3">
+                        <button
+                          onClick={() => setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1))}
+                          disabled={safeIndex === ejemplos.length - 1}
+                          className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                          →
+                        </button>
+                      </div>
+
+                      {/* Card */}
+                      <div
+                        className="border border-indigo-200 dark:border-indigo-800/40 rounded-xl overflow-hidden shadow-sm"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowLeft") setEjemploIndex((i) => Math.max(0, i - 1));
+                          if (e.key === "ArrowRight") setEjemploIndex((i) => Math.min(ejemplos.length - 1, i + 1));
+                        }}>
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 px-5 py-3 flex items-center gap-2">
+                          <span className="bg-indigo-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
+                            {safeIndex + 1}
+                          </span>
+                          <span className="font-semibold text-indigo-800 dark:text-indigo-300">
+                            {ej.titulo}
+                          </span>
+                        </div>
+                        <div className="p-5 space-y-4">
                           <div>
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-wider">
                               Problema
                             </span>
-                            <div className="mt-1 text-gray-700 dark:text-gray-300">
+                            <div className="mt-2 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/30 p-3 rounded-lg border border-gray-100 dark:border-gray-700">
                               <MarkdownLatex content={ej.problema} />
                             </div>
                           </div>
-                          <div className="border-t border-gray-100 dark:border-gray-700 pt-3">
-                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">
+                          <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                            <span className="text-xs font-semibold uppercase text-gray-400 dark:text-gray-500 tracking-wider">
                               Solución
                             </span>
-                            <div className="mt-1 text-gray-700 dark:text-gray-300">
+                            <div className="mt-2 text-gray-700 dark:text-gray-300">
                               <MarkdownLatex content={ej.solucion} />
                             </div>
                           </div>
                         </div>
                       </div>
-                    ))}
-                    {topicDocs.ejemplos.length === 0 && (
-                      <p className="text-gray-400 dark:text-gray-500 text-sm">
-                        No hay ejemplos disponibles.
+
+                      {/* Keyboard hint */}
+                      <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-3">
+                        Usa ← → para navegar entre ejemplos
                       </p>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  );
+                })()}
 
                 {docsTab === "casos" && (
                   <div className="space-y-3">
