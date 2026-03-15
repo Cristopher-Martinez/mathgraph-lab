@@ -20,11 +20,24 @@ export default function TrainingSession({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const exerciseStartRef = useRef<number>(Date.now());
 
+  // Socratic state
+  const [socraticData, setSocraticData] = useState<any>(null);
+  const [socraticStep, setSocraticStep] = useState(0);
+  const [socraticFeedback, setSocraticFeedback] = useState<string | null>(null);
+  const [socraticFeedbackStreaming, setSocraticFeedbackStreaming] =
+    useState(false);
+  const [socraticCompleted, setSocraticCompleted] = useState(false);
+  const [socraticHintsUsed, setSocraticHintsUsed] = useState(0);
+  const [currentHint, setCurrentHint] = useState<string | null>(null);
+  const [hintLevel, setHintLevel] = useState(0);
+  const [loadingSocratic, setLoadingSocratic] = useState(false);
+
   const current = session.current || 0;
   const exercises = session.exercises || [];
   const ex = exercises[current];
   const config = session.config || {};
   const totalExpected = session.totalExpected || exercises.length;
+  const isSocratic = !!config.socratic;
 
   // Init per-exercise timer
   useEffect(() => {
@@ -85,6 +98,203 @@ export default function TrainingSession({
         .catch(() => setLoadingBatch(false));
     }
   }, [current, feedback]);
+
+  // Initialize socratic mode for current exercise
+  useEffect(() => {
+    if (!isSocratic || !ex?.id) return;
+    setSocraticData(null);
+    setSocraticStep(0);
+    setSocraticFeedback(null);
+    setSocraticFeedbackStreaming(false);
+    setSocraticCompleted(false);
+    setSocraticHintsUsed(0);
+    setCurrentHint(null);
+    setHintLevel(0);
+    setLoadingSocratic(true);
+
+    api
+      .tutorStart(ex.id)
+      .then((data) => {
+        setSocraticData(data);
+        setSocraticStep(0);
+      })
+      .catch(() => {
+        // If socratic generation fails, fallback to normal mode for this exercise
+        setSocraticData(null);
+      })
+      .finally(() => setLoadingSocratic(false));
+  }, [current, isSocratic, ex?.id]);
+
+  const handleSocraticSubmit = async () => {
+    if (!ex || !socraticData || submitting) return;
+    setSubmitting(true);
+    setSocraticFeedback(null);
+    setSocraticFeedbackStreaming(true);
+    setCurrentHint(null);
+
+    try {
+      const response = await api.tutorAnswerStream(
+        ex.id,
+        socraticStep,
+        answer.trim(),
+      );
+
+      if (!response.body) {
+        // Fallback to non-streaming
+        const result = await api.tutorAnswer(ex.id, socraticStep, answer.trim());
+        setSocraticFeedbackStreaming(false);
+        setSocraticFeedback(result.feedback);
+        if (result.correct) {
+          if (result.completed) {
+            setSocraticCompleted(true);
+          } else if (result.nextStep !== undefined) {
+            setSocraticStep(result.nextStep);
+            if (result.tutorQuestion) {
+              setSocraticData((prev: any) => ({
+                ...prev,
+                tutorQuestion: result.tutorQuestion,
+              }));
+            }
+            setAnswer("");
+            setHintLevel(0);
+            setCurrentHint(null);
+          }
+        }
+        setSubmitting(false);
+        return;
+      }
+
+      // SSE streaming
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullFeedback = "";
+      let resultData: any = null;
+
+      const processStream = async () => {
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: result")) {
+              continue;
+            }
+            if (line.startsWith("data: ") && !resultData) {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                if (parsed.correct !== undefined) {
+                  resultData = parsed;
+                  continue;
+                }
+              } catch {
+                // Not a result event, it's feedback text
+              }
+            }
+            if (line.startsWith("event: feedback")) {
+              continue;
+            }
+            if (line.startsWith("data: ")) {
+              const text = line.slice(6);
+              if (text !== "[DONE]") {
+                fullFeedback += text;
+                setSocraticFeedback(fullFeedback);
+              }
+            }
+          }
+        }
+      };
+
+      await processStream();
+      setSocraticFeedbackStreaming(false);
+
+      if (resultData) {
+        if (resultData.correct || resultData.partial) {
+          if (resultData.completed) {
+            setSocraticCompleted(true);
+          } else if (resultData.nextStep !== undefined) {
+            // Delay step advance so user can read feedback
+            setTimeout(() => {
+              setSocraticStep(resultData.nextStep);
+              if (resultData.tutorQuestion) {
+                setSocraticData((prev: any) => ({
+                  ...prev,
+                  tutorQuestion: resultData.tutorQuestion,
+                }));
+              }
+              setAnswer("");
+              setSocraticFeedback(null);
+              setHintLevel(0);
+              setCurrentHint(null);
+            }, 2000);
+          }
+        }
+        // If incorrect, student retries same step (stays on current step)
+      }
+    } catch {
+      setSocraticFeedbackStreaming(false);
+      setSocraticFeedback("Error al procesar la respuesta. Intenta de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSocraticHint = async () => {
+    if (!ex || !socraticData) return;
+    const nextLevel = hintLevel;
+    try {
+      const result = await api.tutorHint(ex.id, socraticStep, nextLevel);
+      setCurrentHint(result.hint);
+      setHintLevel(nextLevel + 1);
+      setSocraticHintsUsed((h) => h + 1);
+    } catch {
+      setCurrentHint("No se pudo obtener la pista.");
+    }
+  };
+
+  const handleSocraticExerciseComplete = async (completed: boolean) => {
+    // Record the exercise result in the training session
+    const timeMs = Date.now() - exerciseStartRef.current;
+    try {
+      const result = await api.answerTraining({
+        sessionId: session.sessionId,
+        correct: completed,
+        timeout: false,
+        timeMs,
+        hintsUsed: socraticHintsUsed,
+      });
+
+      setSession((prev: any) => ({
+        ...prev,
+        current: result.current,
+        exercisesCompleted: result.exercisesCompleted,
+        currentDifficulty: result.currentDifficulty,
+        metrics: result.metrics,
+      }));
+
+      if (result.finished) {
+        setTimeout(
+          () => onFinish({ ...session, metrics: result.metrics }),
+          1500,
+        );
+      }
+    } catch {
+      // Advance locally if backend fails
+    }
+
+    // Reset socratic state for next exercise
+    setAnswer("");
+    setFeedback(null);
+    setSocraticCompleted(false);
+    setSocraticFeedback(null);
+    setCurrentHint(null);
+    setHintLevel(0);
+    setSocraticHintsUsed(0);
+  };
 
   const handleTimeout = async () => {
     const timeMs = (config.timePerExercise || 0) * 1000;
@@ -284,43 +494,211 @@ export default function TrainingSession({
                 ? "★★"
                 : "★★★"}
           </span>
+          {isSocratic && (
+            <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+              Socrático
+            </span>
+          )}
         </div>
         <div className="text-lg font-medium mb-4 dark:text-gray-200">
           <MarkdownLatex
             content={ex.latex || ex.question || ex.pregunta || ""}
           />
         </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && !feedback && !submitting && handleSubmit()
-            }
-            placeholder="Tu respuesta..."
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            disabled={!!feedback || submitting}
-          />
-          {!feedback ? (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-              {submitting ? "..." : "Enviar"}
-            </button>
-          ) : (
-            <button
-              onClick={handleNext}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
-              Siguiente →
-            </button>
-          )}
-        </div>
+
+        {/* Socratic Flow */}
+        {isSocratic ? (
+          <div className="space-y-4">
+            {loadingSocratic && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                Preparando guía socrática...
+              </div>
+            )}
+
+            {socraticData && !socraticCompleted && (
+              <>
+                {/* Step indicator */}
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {Array.from({
+                      length: socraticData.totalSteps || socraticData.socratic?.length || 3,
+                    }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-6 h-1.5 rounded-full ${
+                          i < socraticStep
+                            ? "bg-green-500"
+                            : i === socraticStep
+                              ? "bg-indigo-500"
+                              : "bg-gray-300 dark:bg-gray-600"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Paso {socraticStep + 1}/
+                    {socraticData.totalSteps || socraticData.socratic?.length || "?"}
+                  </span>
+                </div>
+
+                {/* Tutor question */}
+                <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                  <p className="text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
+                    Pregunta del tutor:
+                  </p>
+                  <div className="dark:text-gray-200">
+                    <MarkdownLatex
+                      content={
+                        socraticData.tutorQuestion ||
+                        socraticData.socratic?.[socraticStep]?.question ||
+                        ""
+                      }
+                    />
+                  </div>
+                </div>
+
+                {/* Hint */}
+                {currentHint && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                    <p className="text-sm text-amber-800 dark:text-amber-300">
+                      <span className="font-medium">Pista:</span>{" "}
+                      <MarkdownLatex content={currentHint} />
+                    </p>
+                  </div>
+                )}
+
+                {/* Answer input */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      !submitting &&
+                      !socraticFeedbackStreaming &&
+                      handleSocraticSubmit()
+                    }
+                    placeholder="Tu respuesta al paso..."
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    disabled={submitting || socraticFeedbackStreaming}
+                  />
+                  <button
+                    onClick={handleSocraticSubmit}
+                    disabled={submitting || socraticFeedbackStreaming || !answer.trim()}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                    {submitting ? "..." : "Enviar"}
+                  </button>
+                  <button
+                    onClick={handleSocraticHint}
+                    disabled={submitting || socraticFeedbackStreaming}
+                    className="px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 text-sm font-medium"
+                    title="Pedir pista">
+                    💡
+                  </button>
+                </div>
+
+                {/* Socratic feedback */}
+                {socraticFeedback && (
+                  <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                    <p className="text-sm dark:text-gray-300">
+                      <MarkdownLatex content={socraticFeedback} />
+                      {socraticFeedbackStreaming && (
+                        <span className="inline-block w-1.5 h-4 bg-indigo-500 animate-pulse ml-0.5" />
+                      )}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Socratic completed */}
+            {socraticCompleted && (
+              <div className="space-y-3">
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-4 text-center">
+                  <p className="font-semibold text-green-800 dark:text-green-300">
+                    ✓ ¡Ejercicio completado paso a paso!
+                  </p>
+                  {socraticHintsUsed > 0 && (
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                      Pistas utilizadas: {socraticHintsUsed}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleSocraticExerciseComplete(true)}
+                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                  Siguiente ejercicio →
+                </button>
+              </div>
+            )}
+
+            {/* Fallback: no socratic data, show normal input */}
+            {!socraticData && !loadingSocratic && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  No se pudo generar guía socrática. Responde directamente:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      !feedback &&
+                      !submitting &&
+                      handleSubmit()
+                    }
+                    placeholder="Tu respuesta..."
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    disabled={!!feedback || submitting}
+                  />
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                    {submitting ? "..." : "Enviar"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Normal (non-socratic) answer input */
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) =>
+                e.key === "Enter" && !feedback && !submitting && handleSubmit()
+              }
+              placeholder="Tu respuesta..."
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              disabled={!!feedback || submitting}
+            />
+            {!feedback ? (
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                {submitting ? "..." : "Enviar"}
+              </button>
+            ) : (
+              <button
+                onClick={handleNext}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
+                Siguiente →
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Feedback */}
-      {feedback && (
+      {/* Feedback (non-socratic mode) */}
+      {!isSocratic && feedback && (
         <div
           className={`p-4 rounded-lg border ${
             feedback.correct

@@ -11,6 +11,7 @@ interface TrainingConfig {
   exercisesPerTopic: number;
   timed: boolean;
   timePerExercise?: number;
+  socratic: boolean;
 }
 
 interface Props {
@@ -59,6 +60,7 @@ export default function TrainingConfig({
   const [exercisesPerTopic, setExercisesPerTopic] = useState(5);
   const [timed, setTimed] = useState(false);
   const [timePerExercise, setTimePerExercise] = useState(90);
+  const [socratic, setSocratic] = useState(false);
 
   useEffect(() => {
     api
@@ -106,9 +108,10 @@ export default function TrainingConfig({
       topicSelection,
       difficultyMode,
       exercisesPerTopic,
-      timed,
+      timed: timed && !socratic,
       pattern: pattern || undefined,
-      timePerExercise: timed ? timePerExercise : undefined,
+      timePerExercise: timed && !socratic ? timePerExercise : undefined,
+      socratic,
     };
     if (topicSelection === "manual") config.topicIds = selectedTopicIds;
     if (topicSelection === "dag") config.dagRootTopicId = dagRootTopicId!;
@@ -351,8 +354,8 @@ export default function TrainingConfig({
         </div>
       </section>
 
-      {/* Exercises per topic + timer */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Exercises per topic + timer + socratic */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <section className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 space-y-3">
           <h2 className="text-lg font-semibold dark:text-gray-200">
             Ejercicios por tema
@@ -381,7 +384,10 @@ export default function TrainingConfig({
               <input
                 type="checkbox"
                 checked={timed}
-                onChange={(e) => setTimed(e.target.checked)}
+                onChange={(e) => {
+                  setTimed(e.target.checked);
+                  if (e.target.checked) setSocratic(false);
+                }}
                 className="w-4 h-4 accent-indigo-600"
               />
               <span className="text-sm dark:text-gray-300">Activar</span>
@@ -399,6 +405,31 @@ export default function TrainingConfig({
               </select>
             )}
           </div>
+        </section>
+
+        <section className={`bg-white dark:bg-gray-800 rounded-xl p-6 border space-y-3 transition-all ${
+          socratic
+            ? "border-purple-400 dark:border-purple-600 ring-1 ring-purple-300 dark:ring-purple-700"
+            : "border-gray-200 dark:border-gray-700"
+        }`}>
+          <h2 className="text-lg font-semibold dark:text-gray-200">
+            Modo Socrático
+          </h2>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={socratic}
+              onChange={(e) => {
+                setSocratic(e.target.checked);
+                if (e.target.checked) setTimed(false);
+              }}
+              className="w-4 h-4 accent-purple-600"
+            />
+            <span className="text-sm dark:text-gray-300">Activar</span>
+          </label>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            El tutor te guía paso a paso con preguntas y pistas.
+          </p>
         </section>
       </div>
 

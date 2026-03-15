@@ -20,6 +20,7 @@ interface TrainingConfig {
   exercisesPerTopic: number;
   timed: boolean;
   timePerExercise?: number;
+  socratic: boolean;
 }
 
 interface TrainingMetrics {
@@ -323,6 +324,7 @@ router.post("/start", async (req: Request, res: Response) => {
       timePerExercise: req.body.timed
         ? Math.min(300, Math.max(60, req.body.timePerExercise || 90))
         : undefined,
+      socratic: !!req.body.socratic,
     };
 
     // Resolve topic IDs
@@ -395,7 +397,7 @@ router.post("/start", async (req: Request, res: Response) => {
 // Unified answer endpoint — records response, adapts difficulty, accumulates metrics
 router.post("/answer", async (req: Request, res: Response) => {
   try {
-    const { sessionId, correct, timeMs, timeout } = req.body;
+    const { sessionId, correct, timeMs, timeout, hintsUsed: reqHints } = req.body;
     if (!sessionId) {
       res.status(400).json({ error: "sessionId required" });
       return;
@@ -425,6 +427,7 @@ router.post("/answer", async (req: Request, res: Response) => {
     session.metrics.totalExercises++;
     if (isCorrect) session.metrics.correctCount++;
     if (timeout) session.metrics.timeouts++;
+    if (reqHints) session.metrics.hintsUsed += reqHints;
     session.metrics.accuracy =
       session.metrics.correctCount / session.metrics.totalExercises;
     session.metrics.difficultyProgression.push(session.currentDifficulty);
