@@ -1,26 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import IntervalVisualizer from "../components/IntervalVisualizer";
+import { ExerciseListView } from "../components/ExerciseListView";
+import { ExerciseSolvingView } from "../components/ExerciseSolvingView";
 import Latex from "../components/Latex";
 import MarkdownLatex from "../components/MarkdownLatex";
-import MathAnswerInput from "../components/MathAnswerInput";
 import SocraticTutor from "../components/SocraticTutor";
 import TopicCard from "../components/TopicCard";
 import { api } from "../services/api";
-
-const ITEMS_PER_PAGE = 10;
-
-const DIFF_CONFIG = [
-  { level: "easy", label: "Fácil", color: "emerald", icon: "🟢", stars: "★☆☆" },
-  {
-    level: "medium",
-    label: "Intermedio",
-    color: "amber",
-    icon: "🟡",
-    stars: "★★☆",
-  },
-  { level: "hard", label: "Difícil", color: "red", icon: "🔴", stars: "★★★" },
-];
+import { DIFF_CONFIG, DIFFICULTY_COLOR_CLASSES, ITEMS_PER_PAGE } from "../utils/exerciseConstants";
 
 type DetailView = "overview" | "exercises" | "solving" | "socratic";
 
@@ -40,16 +27,7 @@ export default function TopicsPage() {
 
   // Solving state
   const [currentExIndex, setCurrentExIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
-  const [feedback, setFeedback] = useState<any>(null);
-  const [solverResult, setSolverResult] = useState<any>(null);
   const [score, setScore] = useState(0);
-
-  // Exercise tips state
-  const [exerciseTips, setExerciseTips] = useState<any>(null);
-  const [tipsLoading, setTipsLoading] = useState(false);
-  const [notesPage, setNotesPage] = useState(0);
-  const NOTES_PER_PAGE = 3;
 
   // Topic documentation state
   const [topicDocs, setTopicDocs] = useState<any>(null);
@@ -59,7 +37,6 @@ export default function TopicsPage() {
   >("conceptos");
   const [ejemploIndex, setEjemploIndex] = useState(0);
   const [expandedSections, setExpandedSections] = useState<number | null>(0);
-  const [generatingExercise, setGeneratingExercise] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -112,11 +89,6 @@ export default function TopicsPage() {
   const filteredExercises = selectedDifficulty
     ? topicExercises.filter((e: any) => e.difficulty === selectedDifficulty)
     : topicExercises;
-  const totalPages = Math.ceil(filteredExercises.length / ITEMS_PER_PAGE);
-  const paginatedExercises = filteredExercises.slice(
-    (page - 1) * ITEMS_PER_PAGE,
-    page * ITEMS_PER_PAGE,
-  );
 
   const handleSelectDifficulty = (level: string) => {
     setSelectedDifficulty(level);
@@ -127,37 +99,16 @@ export default function TopicsPage() {
   const handleStartExercise = (exerciseIndex: number) => {
     setCurrentExIndex(exerciseIndex);
     setDetailView("solving");
-    setAnswer("");
-    setFeedback(null);
-    setSolverResult(null);
-    // Load tips
-    const ex = filteredExercises[exerciseIndex];
-    if (ex?.id) {
-      setTipsLoading(true);
-      setExerciseTips(null);
-      setNotesPage(0);
-      api
-        .getExerciseTips(ex.id)
-        .then(setExerciseTips)
-        .catch(() => {})
-        .finally(() => setTipsLoading(false));
-    }
   };
 
   const handleStartSocratic = (exerciseIndex: number) => {
     setCurrentExIndex(exerciseIndex);
     setDetailView("socratic");
-    setAnswer("");
-    setFeedback(null);
-    setSolverResult(null);
   };
 
   const handleBack = () => {
     if (detailView === "solving" || detailView === "socratic") {
       setDetailView("exercises");
-      setFeedback(null);
-      setSolverResult(null);
-      setAnswer("");
     } else if (detailView === "exercises") {
       setSelectedDifficulty(null);
       setDetailView("overview");
@@ -165,56 +116,6 @@ export default function TopicsPage() {
   };
 
   const currentEx = filteredExercises[currentExIndex];
-
-  const handleSubmit = async () => {
-    if (!currentEx) return;
-    setFeedback(null);
-    setSolverResult(null);
-
-    try {
-      const solveParams = buildSolveParams(currentEx);
-      if (solveParams) {
-        const result = await api.solveExercise(solveParams);
-        setSolverResult(result);
-      }
-      const validation = await api.validateAnswer({
-        userAnswer: answer.trim(),
-        expectedAnswer: (currentEx.steps || "").trim(),
-        exercisePrompt: currentEx.latex || currentEx.prompt || "",
-      });
-      setFeedback({
-        correct: validation.correct,
-        expected: currentEx.steps,
-        aiFeedback: validation.feedback,
-      });
-      if (validation.correct) setScore((s) => s + 1);
-    } catch {
-      setFeedback({ correct: false, error: "Error al verificar respuesta" });
-    }
-  };
-
-  const handleShowSolution = async () => {
-    if (!currentEx) return;
-    const solveParams = buildSolveParams(currentEx);
-    if (solveParams) {
-      try {
-        const result = await api.solveExercise(solveParams);
-        setSolverResult(result);
-      } catch {
-        /* ignore */
-      }
-    }
-    setFeedback({ correct: false, expected: currentEx.steps, revealed: true });
-  };
-
-  const handleNextExercise = () => {
-    if (currentExIndex < filteredExercises.length - 1) {
-      setCurrentExIndex((i) => i + 1);
-      setAnswer("");
-      setFeedback(null);
-      setSolverResult(null);
-    }
-  };
 
   // ─── Topic Detail: Socratic View ──────────────────
   if (id && topic && detailView === "socratic" && currentEx) {
@@ -231,242 +132,22 @@ export default function TopicsPage() {
 
   // ─── Topic Detail: Solving View ──────────────────
   if (id && topic && detailView === "solving" && currentEx) {
-    const diffConfig = DIFF_CONFIG.find(
-      (d) => d.level === currentEx.difficulty,
-    )!;
-
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
-        <button
-          onClick={handleBack}
-          className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm font-medium">
-          ← Volver a la lista
-        </button>
-
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {topic.name}
-          </h1>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Ejercicio {currentExIndex + 1} de {filteredExercises.length} •
-            Puntaje: {score}
-          </div>
-        </div>
-
-        {/* Barra de progreso */}
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div
-            className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all"
-            style={{
-              width: `${((currentExIndex + 1) / filteredExercises.length) * 100}%`,
-            }}
-          />
-        </div>
-
-        {/* Consejos del ejercicio */}
-        {(tipsLoading || exerciseTips) && (
-          <details className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg">
-            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-cyan-800 dark:text-cyan-200 select-none flex items-center gap-2">
-              <span>💡</span> Consejos para resolver{" "}
-              {exerciseTips && (
-                <span className="text-xs text-cyan-500">
-                  ({exerciseTips.tips.length})
-                </span>
-              )}{" "}
-              {tipsLoading && (
-                <span className="ml-1 text-xs text-cyan-500">cargando...</span>
-              )}
-            </summary>
-            {exerciseTips && (
-              <div className="px-4 pb-4 space-y-2 border-t border-cyan-200 dark:border-cyan-800 pt-3">
-                {exerciseTips.tips.map((tip: any, i: number) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <span
-                      className={`flex-shrink-0 mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                        tip.source === "clase"
-                          ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200"
-                          : "bg-cyan-200 dark:bg-cyan-800 text-cyan-800 dark:text-cyan-200"
-                      }`}>
-                      {i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        {tip.text}
-                      </p>
-                      {tip.source === "clase" && (
-                        <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                          📝 Basado en tus clases
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {exerciseTips.classContext.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="text-xs font-medium text-purple-700 dark:text-purple-300 cursor-pointer select-none">
-                      📚 Notas del profesor ({exerciseTips.classContext.length})
-                    </summary>
-                    <div className="mt-2 space-y-2">
-                      {exerciseTips.classContext
-                        .slice(
-                          notesPage * NOTES_PER_PAGE,
-                          (notesPage + 1) * NOTES_PER_PAGE,
-                        )
-                        .map((note: any, i: number) => (
-                          <div
-                            key={i}
-                            className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
-                            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">
-                              {note.titulo}
-                            </p>
-                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                              <MarkdownLatex content={note.contenido} />
-                            </div>
-                          </div>
-                        ))}
-                      {exerciseTips.classContext.length > NOTES_PER_PAGE && (
-                        <div className="flex items-center justify-between pt-1">
-                          <button
-                            onClick={() =>
-                              setNotesPage((p) => Math.max(0, p - 1))
-                            }
-                            disabled={notesPage === 0}
-                            className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
-                            ← Anterior
-                          </button>
-                          <span className="text-xs text-purple-500 dark:text-purple-400">
-                            {notesPage + 1} /{" "}
-                            {Math.ceil(
-                              exerciseTips.classContext.length / NOTES_PER_PAGE,
-                            )}
-                          </span>
-                          <button
-                            onClick={() =>
-                              setNotesPage((p) =>
-                                Math.min(
-                                  Math.ceil(
-                                    exerciseTips.classContext.length /
-                                      NOTES_PER_PAGE,
-                                  ) - 1,
-                                  p + 1,
-                                ),
-                              )
-                            }
-                            disabled={
-                              notesPage >=
-                              Math.ceil(
-                                exerciseTips.classContext.length /
-                                  NOTES_PER_PAGE,
-                              ) -
-                                1
-                            }
-                            className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 disabled:opacity-40 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors">
-                            Siguiente →
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-          </details>
-        )}
-
-        {/* Ejercicio */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="px-2 py-0.5 rounded text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-medium">
-              {topic.name}
-            </span>
-            <span className="px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium">
-              {diffConfig.icon} {diffConfig.label}
-            </span>
-          </div>
-          <div className="text-lg font-medium mb-4 text-gray-900 dark:text-gray-100">
-            <MarkdownLatex content={currentEx.latex || currentEx.question} />
-          </div>
-
-          <div className="flex gap-2">
-            <MathAnswerInput
-              value={answer}
-              onChange={setAnswer}
-              onSubmit={handleSubmit}
-              expectedAnswer={currentEx.steps}
-            />
-            <button
-              onClick={handleSubmit}
-              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors self-start">
-              Verificar
-            </button>
-          </div>
-        </div>
-
-        {/* Retroalimentación */}
-        {feedback && (
-          <div
-            className={`p-4 rounded-lg border ${
-              feedback.correct
-                ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100"
-                : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100"
-            }`}>
-            <div className="font-semibold">
-              {feedback.correct
-                ? "✓ ¡Correcto!"
-                : feedback.revealed
-                  ? "💡 Solución:"
-                  : "✗ Incorrecto"}
-            </div>
-            {feedback.aiFeedback && (
-              <div className="mt-2 text-sm">{feedback.aiFeedback}</div>
-            )}
-            {!feedback.correct && feedback.expected && (
-              <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Esperado:{" "}
-                <span className="font-mono font-semibold">
-                  {feedback.expected}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Visualización de Intervalos */}
-        {solverResult?.intervals && (
-          <div>
-            <h3 className="font-semibold mb-2 text-gray-900 dark:text-gray-200">
-              Visualización de la Solución
-            </h3>
-            <IntervalVisualizer intervals={solverResult.intervals} />
-            {solverResult.notation && (
-              <p className="mt-2 text-sm font-mono text-gray-700 dark:text-gray-300 text-center">
-                {solverResult.notation}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Navegación */}
-        <div className="flex gap-3 flex-wrap">
-          <button
-            onClick={handleShowSolution}
-            className="px-4 py-2 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/70 font-medium transition-colors">
-            Mostrar Solución
-          </button>
-          <button
-            onClick={() => handleStartSocratic(currentExIndex)}
-            className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/70 font-medium transition-colors flex items-center gap-1.5">
-            🧠 Modo Socrático
-          </button>
-          {currentExIndex < filteredExercises.length - 1 && (
-            <button
-              onClick={handleNextExercise}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors">
-              Siguiente Ejercicio →
-            </button>
-          )}
-        </div>
-      </div>
+      <ExerciseSolvingView
+        exercise={currentEx}
+        exercises={filteredExercises}
+        currentIndex={currentExIndex}
+        topicName={topic.name}
+        score={score}
+        onScoreChange={(delta) => setScore((s) => s + delta)}
+        onNextExercise={() => {
+          if (currentExIndex < filteredExercises.length - 1) {
+            setCurrentExIndex((i) => i + 1);
+          }
+        }}
+        onStartSocratic={handleStartSocratic}
+        onBack={handleBack}
+      />
     );
   }
 
@@ -475,128 +156,26 @@ export default function TopicsPage() {
     const diffConfig = DIFF_CONFIG.find((d) => d.level === selectedDifficulty)!;
 
     return (
-      <div className="space-y-6">
-        <button
-          onClick={handleBack}
-          className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm font-medium">
-          ← Volver a dificultad
-        </button>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {topic.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {diffConfig.icon} {diffConfig.label}
-              </span>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                • {filteredExercises.length} ejercicios
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-              Puntaje: {score}
-            </span>
-            <button
-              onClick={async () => {
-                setGeneratingExercise(true);
-                try {
-                  const newEx = await api.generateOneExercise(
-                    topic.id,
-                    selectedDifficulty!,
-                  );
-                  setTopic((prev: any) => ({
-                    ...prev,
-                    exercises: [...(prev.exercises || []), newEx],
-                  }));
-                } catch {
-                  // silently fail
-                }
-                setGeneratingExercise(false);
-              }}
-              disabled={generatingExercise}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
-              {generatingExercise ? (
-                <>
-                  <span className="animate-spin w-3 h-3 border-2 border-indigo-300 border-t-indigo-600 rounded-full" />
-                  Generando...
-                </>
-              ) : (
-                <>✨ Generar ejercicio</>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Lista de ejercicios */}
-        <div className="space-y-2">
-          {paginatedExercises.map((ex: any, i: number) => {
-            const globalIndex = (page - 1) * ITEMS_PER_PAGE + i;
-            return (
-              <div
-                key={ex.id}
-                className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all flex items-center justify-between group">
-                <button
-                  onClick={() => handleStartExercise(globalIndex)}
-                  className="flex items-center gap-3 min-w-0 flex-1 text-left">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center text-sm font-bold">
-                    {globalIndex + 1}
-                  </span>
-                  <span className="text-gray-800 dark:text-gray-200 font-medium truncate">
-                    <MarkdownLatex content={ex.latex || ex.question} />
-                  </span>
-                </button>
-                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                  <button
-                    onClick={() => handleStartSocratic(globalIndex)}
-                    title="Iniciar en modo Socrático"
-                    className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-800/60 transition-colors flex items-center gap-1">
-                    🧠 Socrático
-                  </button>
-                  <span
-                    className="text-indigo-500 dark:text-indigo-400 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity text-sm cursor-pointer"
-                    onClick={() => handleStartExercise(globalIndex)}>
-                    Resolver →
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Paginación */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              ← Anterior
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
-                  p === page
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}>
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              Siguiente →
-            </button>
-          </div>
-        )}
-      </div>
+      <ExerciseListView
+        exercises={filteredExercises}
+        topicId={topic.id}
+        topicName={topic.name}
+        difficulty={selectedDifficulty}
+        diffLabel={diffConfig.label}
+        diffIcon={diffConfig.icon}
+        score={score}
+        page={page}
+        onPageChange={setPage}
+        onStartExercise={handleStartExercise}
+        onStartSocratic={handleStartSocratic}
+        onExerciseAdded={(newEx) => {
+          setTopic((prev: any) => ({
+            ...prev,
+            exercises: [...(prev.exercises || []), newEx],
+          }));
+        }}
+        onBack={handleBack}
+      />
     );
   }
 
@@ -905,19 +484,11 @@ export default function TopicsPage() {
                 ).length;
                 if (count === 0) return null;
 
-                const colorClasses: Record<string, string> = {
-                  emerald:
-                    "border-emerald-300 dark:border-emerald-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20",
-                  amber:
-                    "border-amber-300 dark:border-amber-700 hover:border-amber-500 dark:hover:border-amber-500 bg-amber-50 dark:bg-amber-900/20",
-                  red: "border-red-300 dark:border-red-700 hover:border-red-500 dark:hover:border-red-500 bg-red-50 dark:bg-red-900/20",
-                };
-
                 return (
                   <button
                     key={level}
                     onClick={() => handleSelectDifficulty(level)}
-                    className={`rounded-xl p-6 border-2 ${colorClasses[color]} hover:shadow-lg transition-all text-center`}>
+                    className={`rounded-xl p-6 border-2 ${DIFFICULTY_COLOR_CLASSES[color]} hover:shadow-lg transition-all text-center`}>
                     <div className="text-4xl mb-3">{icon}</div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-1">
                       {label}
@@ -1004,39 +575,4 @@ export default function TopicsPage() {
       </div>
     </div>
   );
-}
-
-function buildSolveParams(ex: any): { type: string; params: any } | null {
-  // Detectar tipo de ejercicio por contenido del latex
-  const text = ex.latex || "";
-  const coords = [
-    ...text.matchAll(/\((-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\)/g),
-  ];
-  if (coords.length >= 2) {
-    // Determinar tipo por palabras clave
-    let type = "distance";
-    if (
-      text.toLowerCase().includes("punto medio") ||
-      text.toLowerCase().includes("midpoint")
-    )
-      type = "midpoint";
-    else if (
-      text.toLowerCase().includes("pendiente") ||
-      text.toLowerCase().includes("slope")
-    )
-      type = "slope";
-    else if (
-      text.toLowerCase().includes("ecuación") ||
-      text.toLowerCase().includes("recta que pasa")
-    )
-      type = "line_equation";
-    return {
-      type,
-      params: {
-        pointA: { x: parseFloat(coords[0][1]), y: parseFloat(coords[0][2]) },
-        pointB: { x: parseFloat(coords[1][1]), y: parseFloat(coords[1][2]) },
-      },
-    };
-  }
-  return null;
 }
