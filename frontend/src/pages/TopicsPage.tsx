@@ -235,7 +235,7 @@ export default function TopicsPage() {
             />
             <button
               onClick={handleSubmit}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors">
+              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors self-start">
               Verificar
             </button>
           </div>
