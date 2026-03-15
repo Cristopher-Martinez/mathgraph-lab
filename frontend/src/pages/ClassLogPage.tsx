@@ -23,7 +23,7 @@ interface WeekTimeline {
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_IMAGES = 20;
 const CLASSES_PER_PAGE = 5;
-const EXERCISES_PER_PAGE = 6;
+const EXERCISES_PER_PAGE = 5;
 const COOLDOWN_SECONDS = 10;
 
 export default function ClassLogPage() {
