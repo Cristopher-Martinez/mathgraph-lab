@@ -17,9 +17,7 @@ const aiLimiter = rateLimit({
   }),
 });
 
-router.use(aiLimiter);
-
-router.post("/explain", async (req: Request, res: Response) => {
+router.post("/explain", aiLimiter, async (req: Request, res: Response) => {
   try {
     const { problem } = req.body;
     if (!problem || typeof problem !== "string") {
@@ -79,7 +77,7 @@ Problema: ${problem}`;
   }
 });
 
-router.post("/validate", async (req: Request, res: Response) => {
+router.post("/validate", aiLimiter, async (req: Request, res: Response) => {
   try {
     const { userAnswer, expectedAnswer, exercisePrompt } = req.body;
     if (!userAnswer || !expectedAnswer) {
