@@ -84,10 +84,24 @@ const frontendPath = path.join(__dirname, "../../frontend/dist");
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(frontendPath));
 
-  // SPA catch-all: serve index.html for non-API routes (BEFORE auth)
-  // This ensures direct navigation/refresh to /practice, /dashboard, etc. works
-  app.get(/^\/(?!api|auth|topics|exercises|exercise|formulas|ai|progress|training|tutor|chat|class-log|notes|health|socket\.io).*/, (_req, res) => {
-    res.sendFile(path.join(frontendPath, "index.html"));
+  // SPA catch-all: serve index.html for frontend routes (BEFORE auth)
+  // Match known frontend routes so direct navigation/refresh works
+  const frontendRoutes = [
+    "/login", "/topics", "/dag", "/practice", "/geometry",
+    "/ai-tutor", "/training", "/chat", "/class-log", "/apuntes",
+    "/reviews",
+  ];
+  app.get("*", (req, res, next) => {
+    // Serve index.html for root or known frontend routes
+    const p = req.path;
+    if (p === "/" || frontendRoutes.some((r) => p === r || p.startsWith(r + "/"))) {
+      return res.sendFile(path.join(frontendPath, "index.html"));
+    }
+    // Also serve for paths that don't look like API routes (no dot = not a file)
+    if (!p.includes(".") && !p.startsWith("/api/") && !p.startsWith("/auth/") && !p.startsWith("/socket.io")) {
+      return res.sendFile(path.join(frontendPath, "index.html"));
+    }
+    next();
   });
 }
 
