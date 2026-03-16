@@ -66,6 +66,9 @@ const PIPELINE_MAP = {
 guardedHook("pre-tool-security", async (input) => {
   const { evaluateAuditGate, isUrgentMessage, recordUrgentMessage } =
     await import("./lib/audit-gate.mjs");
+  const { evaluateAutohydrateGate } = await import(
+    "./lib/autohydrate-gate.mjs"
+  );
   const { evaluateCommitGate } = await import("./lib/commit-gate.mjs");
   const { evaluateImmunityGate } = await import("./lib/immunity-gate.mjs");
   const { saveToolCheckpoint, summarizeToolInput } =
@@ -393,6 +396,7 @@ guardedHook("pre-tool-security", async (input) => {
     const sessionId = toolInput.sessionId || "";
     const synthesis = toolInput.synthesis || "";
     if (sessionId) {
+      // ── Step 1: AUDIT GATE (code discipline) ──
       const { decision, context: auditCtx } = evaluateAuditGate(
         cwd,
         sessionId,
@@ -406,30 +410,42 @@ guardedHook("pre-tool-security", async (input) => {
           auditCtx,
         );
       }
-      // Allow with audit context injected
-      if (auditCtx) {
-        // COMMIT GATE: Check if commit is required (BLOCKING)
-        const commitResult = evaluateCommitGate(cwd, sessionId);
-        if (commitResult.decision === "deny") {
-          const combined = `${auditCtx}\n\n${commitResult.context}`;
-          persistGateBlock(cwd, sessionId, combined);
-          return emit(
-            "allow",
-            "Gate intercepted — tool handler will return reason.",
-            combined,
-          );
-        }
-        return emit("allow", "Audit gate passed.", auditCtx);
-      }
-      // No audit context — still check commit gate (BLOCKING)
-      const commitResult = evaluateCommitGate(cwd, sessionId);
-      if (commitResult.decision === "deny") {
-        persistGateBlock(cwd, sessionId, commitResult.context);
+
+      // ── Step 2: AUTOHYDRATE GATE (knowledge capture) ──
+      const autohydrateResult = evaluateAutohydrateGate(
+        cwd,
+        sessionId,
+        synthesis,
+      );
+      if (autohydrateResult.decision === "deny") {
+        const combined = auditCtx
+          ? `${auditCtx}\n\n${autohydrateResult.context}`
+          : autohydrateResult.context;
+        persistGateBlock(cwd, sessionId, combined);
         return emit(
           "allow",
           "Gate intercepted — tool handler will return reason.",
-          commitResult.context,
+          combined,
         );
+      }
+
+      // ── Step 3: COMMIT GATE (code checkpoint) ──
+      const commitResult = evaluateCommitGate(cwd, sessionId);
+      if (commitResult.decision === "deny") {
+        const combined = auditCtx
+          ? `${auditCtx}\n\n${commitResult.context}`
+          : commitResult.context;
+        persistGateBlock(cwd, sessionId, combined);
+        return emit(
+          "allow",
+          "Gate intercepted — tool handler will return reason.",
+          combined,
+        );
+      }
+
+      // All gates passed — return audit context if exists
+      if (auditCtx) {
+        return emit("allow", "All gates passed.", auditCtx);
       }
     }
   }
