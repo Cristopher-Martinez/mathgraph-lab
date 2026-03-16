@@ -448,6 +448,10 @@ router.get("/:id", async (req: Request, res: Response) => {
       formulas: safeParseJson(clase.formulas),
       actividades: safeParseJson(clase.activities),
       imagenes: clase.images,
+      vectorized: clase.vectorized,
+      analyzed: clase.analyzed,
+      deepAnalyzed: clase.deepAnalyzed,
+      analysisModel: clase.analysisModel,
       ejercicios: ejerciciosGenerados.map((ej) => ({
         id: ej.id,
         pregunta: ej.latex,

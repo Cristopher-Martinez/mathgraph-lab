@@ -25,14 +25,22 @@ export interface GenerationStatus {
   error?: string;
 }
 
+export interface AnalysisProgress {
+  classId: number;
+  phase: "vectorizing" | "preview" | "truth" | "complete";
+  message: string;
+}
+
 interface GenerationContextType {
   generations: Map<string, GenerationStatus>;
   activeGenerations: GenerationStatus[];
+  analysisProgress: AnalysisProgress | null;
 }
 
 const GenerationContext = createContext<GenerationContextType>({
   generations: new Map(),
   activeGenerations: [],
+  analysisProgress: null,
 });
 
 function statusKey(type: string, classId: number) {
@@ -43,6 +51,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   const [generations, setGenerations] = useState<Map<string, GenerationStatus>>(
     new Map(),
   );
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   const upsert = useCallback((status: GenerationStatus) => {
@@ -72,6 +81,10 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
       upsert(status);
     });
 
+    socket.on("analysis-progress", (data: AnalysisProgress) => {
+      setAnalysisProgress(data);
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -82,7 +95,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <GenerationContext.Provider value={{ generations, activeGenerations }}>
+    <GenerationContext.Provider value={{ generations, activeGenerations, analysisProgress }}>
       {children}
     </GenerationContext.Provider>
   );

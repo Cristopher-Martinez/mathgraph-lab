@@ -231,6 +231,11 @@ export const api = {
       method: "DELETE",
     }),
 
+  reanalyzeClassLog: (id: number) =>
+    request<any>(`/class-log/${id}/reanalyze`, {
+      method: "POST",
+    }),
+
   generateClassExercises: (id: number) =>
     request<any>(`/class-log/${id}/generate-exercises`, {
       method: "POST",

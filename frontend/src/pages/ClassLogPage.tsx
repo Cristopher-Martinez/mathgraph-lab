@@ -940,6 +940,7 @@ function DetalleClase({
 }) {
   const [exPage, setExPage] = useState(1);
   const [diffFilter, setDiffFilter] = useState<string>("all");
+  const [reanalyzing, setReanalyzing] = useState(false);
 
   const ejercicios = clase.ejercicios || [];
   const filteredExercicios =
@@ -987,10 +988,22 @@ function DetalleClase({
           className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
           ← Volver
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {`Clase #${clase.id}`}
-          </h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {`Clase #${clase.id}`}
+            </h1>
+            {/* Analysis Status Badge */}
+            {clase.deepAnalyzed ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400">
+                ✓ Análisis completo
+              </span>
+            ) : clase.analyzed ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 animate-pulse">
+                📊 Análisis preliminar
+              </span>
+            ) : null}
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {new Date(clase.date).toLocaleDateString("es-ES", {
               weekday: "long",
@@ -1001,6 +1014,20 @@ function DetalleClase({
             })}
           </p>
         </div>
+        <button
+          onClick={async () => {
+            setReanalyzing(true);
+            try {
+              await api.reanalyzeClassLog(clase.id);
+            } finally {
+              setReanalyzing(false);
+            }
+          }}
+          disabled={reanalyzing}
+          className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+          title="Re-analizar con pipeline completo">
+          {reanalyzing ? "⏳" : "🔄"} Re-analizar
+        </button>
       </div>
 
       {/* Tab card */}
@@ -1032,7 +1059,7 @@ function DetalleClase({
                     Resumen
                   </h3>
                   <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    {clase.summary}
+                    {clase.summary.replace(/^\[PREVIEW\]\s*/, "")}
                   </p>
                 </div>
               )}
