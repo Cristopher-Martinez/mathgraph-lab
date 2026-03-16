@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { createHash } from "crypto";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
 import {
@@ -94,6 +95,27 @@ router.post("/", async (req: Request, res: Response) => {
 
     const textoTranscripcion = tieneTranscripcion ? transcript.trim() : "";
 
+    // Dedup: check for duplicate transcript hash (last 24h)
+    let transcriptHash: string | null = null;
+    if (textoTranscripcion.length > 0) {
+      transcriptHash = createHash("sha256").update(textoTranscripcion).digest("hex");
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const existing = await prisma.classLog.findFirst({
+        where: {
+          transcriptHash,
+          createdAt: { gte: oneDayAgo },
+        },
+        select: { id: true, createdAt: true },
+      });
+      if (existing) {
+        res.status(409).json({
+          error: "Esta transcripción ya fue registrada",
+          detail: `Clase #${existing.id} creada ${Math.round((Date.now() - existing.createdAt.getTime()) / 1000 / 60)} minutos atrás`,
+        });
+        return;
+      }
+    }
+
     console.log(
       `[ClassLog] Creando clase (async): transcripción=${tieneTranscripcion ? `${textoTranscripcion.length} chars` : "no"}, imágenes=${imagenesData.length}`,
     );
@@ -103,6 +125,7 @@ router.post("/", async (req: Request, res: Response) => {
       data: {
         date: new Date(date + "T12:00:00"),
         transcript: textoTranscripcion,
+        transcriptHash,
         summary: "Procesando...",
         topics: "[]",
         formulas: "[]",

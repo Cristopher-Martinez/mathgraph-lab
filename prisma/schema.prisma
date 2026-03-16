@@ -64,18 +64,21 @@ model AIInteraction {
 }
 
 model ClassLog {
-    id         Int          @id @default(autoincrement())
-    date       DateTime
-    title      String?
-    transcript String
-    summary    String?
-    topics     String?
-    formulas    String?
-    activities  String?
-    createdAt   DateTime     @default(now())
-    images      ClassImage[]
-    chunks     ClassChunk[]
-    notes      ClassNote[]
+    id              Int          @id @default(autoincrement())
+    date            DateTime
+    title           String?
+    transcript      String
+    transcriptHash  String?
+    summary         String?
+    topics          String?
+    formulas        String?
+    activities      String?
+    createdAt       DateTime     @default(now())
+    images          ClassImage[]
+    chunks          ClassChunk[]
+    notes           ClassNote[]
+
+    @@index([transcriptHash, createdAt])
 }
 
 model ClassImage {
