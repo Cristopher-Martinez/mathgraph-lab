@@ -42,3 +42,24 @@ export function broadcastGenerationUpdate(status: any): void {
     io.emit("generation:update", status);
   }
 }
+
+export function broadcastAnalysisProgress(
+  classId: number,
+  phase: "vectorizing" | "preview" | "truth" | "complete",
+): void {
+  const messages: Record<string, string> = {
+    vectorizing: "Indexando transcripción...",
+    preview: "Generando resumen preliminar...",
+    truth: "Análisis completo en progreso...",
+    complete: "Análisis completado",
+  };
+
+  if (io) {
+    io.emit("analysis-progress", {
+      type: "analysis-progress",
+      classId,
+      phase,
+      message: messages[phase],
+    });
+  }
+}

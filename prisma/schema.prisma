@@ -79,6 +79,19 @@ model ClassLog {
     chunks          ClassChunk[]
     notes           ClassNote[]
 
+    // Vectorización (Fase 1)
+    vectorized      Boolean      @default(false)
+    vectorizedAt    DateTime?
+
+    // Análisis (Fase 2: Flash preview)
+    analyzed        Boolean      @default(false)
+    analyzedAt      DateTime?
+    analysisModel   String?      // "flash-preview" | "pro"
+
+    // Fuente de verdad (Fase 3: Pro)
+    deepAnalyzed    Boolean      @default(false)
+    deepAnalyzedAt  DateTime?
+
     @@index([transcriptHash, createdAt])
 }
 

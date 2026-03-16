@@ -21,26 +21,20 @@ async function isCancelled(classId: number): Promise<boolean> {
 }
 
 /**
- * Full background pipeline: analyze transcript + propagate.
+ * Full background pipeline: 3-phase analysis + propagation.
+ * Phase 1: Vectorize transcript (embeddings, $0.00)
+ * Phase 2: Flash preview (fast, ~$0.005)
+ * Phase 3: Pro truth (quality, ~$0.10)
  * Called from jobQueue for async POST /class-log.
  */
 export async function analyzeAndPropagate(
   classId: number,
 ): Promise<void> {
-  console.log(`[AnalyzeAndPropagate] Starting for class ${classId}`);
+  console.log(`[AnalyzeAndPropagate] Starting 3-phase pipeline for class ${classId}`);
 
-  const { analizarTranscripcion } = await import("./transcriptAnalysis");
+  const { analizarTranscripcionFlash, analizarTranscripcionPro } = await import("./transcriptAnalysis");
   const { indexClassTranscript } = await import("./ragService");
   const { broadcastGenerationUpdate } = await import("./websocket");
-
-  // Broadcast initial status manually (propagateClassChanges will create full pipeline)
-  broadcastGenerationUpdate({
-    classId,
-    type: "class",
-    status: "running",
-    steps: [{ label: "Analizando transcripción", status: "running" }],
-    startedAt: Date.now(),
-  });
 
   try {
     // Cancel check
@@ -49,7 +43,7 @@ export async function analyzeAndPropagate(
       return;
     }
 
-    // Read transcript from DB (avoids bloating BullMQ job data in Redis)
+    // Read transcript from DB
     const classRecord = await prisma.classLog.findUnique({
       where: { id: classId },
       select: { transcript: true, images: { select: { url: true } } },
@@ -58,37 +52,109 @@ export async function analyzeAndPropagate(
       throw new Error(`ClassLog ${classId} not found`);
     }
 
-    // 2. Analyze transcript
     const textoTranscripcion = classRecord.transcript?.trim() || "";
-    const textoFinal = textoTranscripcion ||
-      "[Sin transcripción de voz. Analiza únicamente las imágenes adjuntas de la clase.]";
+    if (!textoTranscripcion) {
+      // No transcript — skip to propagation
+      await propagateClassChanges(classId, true);
+      return;
+    }
 
-    const analisis = textoTranscripcion.length > 0
-      ? await analizarTranscripcion(textoFinal)
-      : { temas: [], formulas: [], tiposEjercicio: [], resumen: "Clase sin contenido.", conceptosClave: [], actividades: [] };
-
-    // Cancel check
+    // ═══════════════════════════════════════════════
+    // FASE 1: Vectorización ($0.00)
+    // ═══════════════════════════════════════════════
     if (await isCancelled(classId)) return;
 
-    // 3. Update ClassLog record with analysis results
+    broadcastGenerationUpdate({
+      classId,
+      type: "class",
+      status: "running",
+      steps: [{ label: "Vectorizando transcripción", status: "running" }],
+      startedAt: Date.now(),
+    });
+
+    try {
+      await indexClassTranscript(classId, textoTranscripcion, null);
+      await prisma.classLog.update({
+        where: { id: classId },
+        data: { vectorized: true, vectorizedAt: new Date() },
+      });
+      console.log(`[AnalyzeAndPropagate] Fase 1 completada: vectorización para clase ${classId}`);
+    } catch (err) {
+      // Vectorization failure is non-blocking
+      console.error(`[AnalyzeAndPropagate] Fase 1 error (no bloquea):`, err);
+    }
+
+    // ═══════════════════════════════════════════════
+    // FASE 2: Preview con Flash (~8s, ~$0.005)
+    // ═══════════════════════════════════════════════
+    if (await isCancelled(classId)) return;
+
+    broadcastGenerationUpdate({
+      classId,
+      type: "class",
+      status: "running",
+      steps: [
+        { label: "Vectorizando transcripción", status: "completed" },
+        { label: "Generando preview rápido", status: "running" },
+      ],
+      startedAt: Date.now(),
+    });
+
+    const preview = await analizarTranscripcionFlash(textoTranscripcion);
+
     await prisma.classLog.update({
       where: { id: classId },
       data: {
-        summary: analisis.resumen,
-        topics: JSON.stringify(analisis.temas),
-        formulas: JSON.stringify(analisis.formulas),
-        activities: JSON.stringify(analisis.actividades),
+        summary: `[PREVIEW] ${preview.resumen}`,
+        topics: JSON.stringify(preview.temas),
+        formulas: JSON.stringify(preview.formulas),
+        activities: JSON.stringify(preview.actividades),
+        analyzed: true,
+        analyzedAt: new Date(),
+        analysisModel: "flash-preview",
       },
     });
 
-    // 4. Index for RAG (fire-and-forget)
-    if (textoTranscripcion.length > 0) {
-      indexClassTranscript(classId, textoTranscripcion, analisis.resumen).catch((err) => {
-        console.error(`[AnalyzeAndPropagate] RAG index error:`, err);
-      });
-    }
+    console.log(`[AnalyzeAndPropagate] Fase 2 completada: preview Flash para clase ${classId}`);
 
-    // 5. Propagate (topics, exercises, docs, DAG) — reuses existing logic
+    // Broadcast preview ready
+    broadcastGenerationUpdate({
+      classId,
+      type: "class",
+      status: "running",
+      steps: [
+        { label: "Vectorizando transcripción", status: "completed" },
+        { label: "Generando preview rápido", status: "completed" },
+        { label: "Análisis profundo (fuente de verdad)", status: "running" },
+      ],
+      startedAt: Date.now(),
+    });
+
+    // ═══════════════════════════════════════════════
+    // FASE 3: Fuente de verdad con Pro (~25s, ~$0.10)
+    // ═══════════════════════════════════════════════
+    if (await isCancelled(classId)) return;
+
+    const truth = await analizarTranscripcionPro(textoTranscripcion);
+
+    await prisma.classLog.update({
+      where: { id: classId },
+      data: {
+        summary: truth.resumen, // Sobrescribe preview
+        topics: JSON.stringify(truth.temas),
+        formulas: JSON.stringify(truth.formulas),
+        activities: JSON.stringify(truth.actividades),
+        deepAnalyzed: true,
+        deepAnalyzedAt: new Date(),
+        analysisModel: "pro",
+      },
+    });
+
+    console.log(`[AnalyzeAndPropagate] Fase 3 completada: verdad Pro para clase ${classId}`);
+
+    // ═══════════════════════════════════════════════
+    // PROPAGACIÓN: Topics, Exercises, DAG
+    // ═══════════════════════════════════════════════
     await propagateClassChanges(classId, true);
   } catch (err: any) {
     console.error(`[AnalyzeAndPropagate] Error for class ${classId}:`, err);

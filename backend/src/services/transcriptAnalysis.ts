@@ -99,20 +99,24 @@ Responde SOLO con JSON válido:
   "actividades": ["actividades asignadas únicas"]
 }`;
 
-function getModel() {
+function getModelByName(modelName: string = "gemini-2.5-pro") {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY no está configurada");
   }
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: "gemini-2.5-pro",
+    model: modelName,
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 8192,
       topP: 0.8,
     },
   });
+}
+
+function getModel() {
+  return getModelByName("gemini-2.5-pro");
 }
 
 /**
@@ -328,14 +332,34 @@ function deduplicateSimilar(items: string[]): string[] {
 }
 
 /**
- * Analiza una transcripción de clase usando Gemini 2.5 Pro.
- * Las imágenes se envían como contexto visual multimodal (fotos de pizarrón/cuaderno).
- * Para transcripciones largas (>30k chars), las divide en chunks,
- * analiza cada uno (con las imágenes como contexto) y fusiona los resultados.
+ * Análisis con Gemini 2.5 Flash (preview rápido, ~90% precisión).
+ * Usado en Fase 2 del pipeline de 3 fases.
  */
-export async function analizarTranscripcion(
+export async function analizarTranscripcionFlash(
   transcripcion: string,
   imagenes?: ImagenContexto[],
+): Promise<TranscriptAnalysisResult> {
+  return _analizarConModelo(transcripcion, imagenes, "gemini-2.5-flash");
+}
+
+/**
+ * Análisis con Gemini 2.5 Pro (fuente de verdad, máxima calidad).
+ * Usado en Fase 3 del pipeline de 3 fases.
+ */
+export async function analizarTranscripcionPro(
+  transcripcion: string,
+  imagenes?: ImagenContexto[],
+): Promise<TranscriptAnalysisResult> {
+  return _analizarConModelo(transcripcion, imagenes, "gemini-2.5-pro");
+}
+
+/**
+ * Lógica común parametrizada por modelo (DRY).
+ */
+async function _analizarConModelo(
+  transcripcion: string,
+  imagenes: ImagenContexto[] | undefined,
+  modelName: string,
 ): Promise<TranscriptAnalysisResult> {
   if (!transcripcion || transcripcion.trim().length === 0) {
     return EMPTY_RESULT;
@@ -346,73 +370,117 @@ export async function analizarTranscripcion(
 
   const numImgs = imagenes?.length || 0;
   console.log(
-    `[TranscriptAnalysis] Procesando transcripción: ${textoLimpio.length} chars, ${chunks.length} chunk(s), ${numImgs} imagen(es) de contexto`,
+    `[TranscriptAnalysis] [${modelName}] Procesando: ${textoLimpio.length} chars, ${chunks.length} chunk(s), ${numImgs} imagen(es)`,
   );
 
-  // Caso simple: cabe en un solo chunk
   if (chunks.length === 1) {
-    return analizarChunkUnico(chunks[0], imagenes);
+    return analizarChunkUnicoConModelo(chunks[0], imagenes, modelName);
   }
 
-  // Para chunks múltiples: las imágenes se envían solo con el primer chunk
-  // para no duplicar el costo de tokens de imagen en cada llamada.
-  // El primer chunk tiene el contexto visual completo.
   const resultados: TranscriptAnalysisResult[] = [];
   for (let i = 0; i < chunks.length; i++) {
     console.log(
-      `[TranscriptAnalysis] Procesando chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)${i === 0 && numImgs > 0 ? ` + ${numImgs} imágenes` : ""}`,
+      `[TranscriptAnalysis] [${modelName}] Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)${i === 0 && numImgs > 0 ? ` + ${numImgs} imágenes` : ""}`,
     );
     try {
-      // Imágenes solo en el primer chunk
       const imgsParaChunk = i === 0 ? imagenes : undefined;
-      const resultado = await analizarChunk(
+      const resultado = await analizarChunkConModelo(
         chunks[i],
         i + 1,
         chunks.length,
         imgsParaChunk,
+        modelName,
       );
       resultados.push(resultado);
     } catch (err) {
-      console.error(`[TranscriptAnalysis] Error en chunk ${i + 1}:`, err);
-      // Continuar con los chunks restantes
+      console.error(`[TranscriptAnalysis] [${modelName}] Error en chunk ${i + 1}:`, err);
     }
   }
 
-  if (resultados.length === 0) {
-    return EMPTY_RESULT;
-  }
+  if (resultados.length === 0) return EMPTY_RESULT;
 
-  // Fusionar resultados
   console.log(
-    `[TranscriptAnalysis] Fusionando ${resultados.length} análisis parciales`,
+    `[TranscriptAnalysis] [${modelName}] Fusionando ${resultados.length} análisis parciales`,
   );
   return fusionarAnalisis(resultados);
 }
 
 /**
- * Análisis directo para transcripciones que caben en un solo chunk,
- * opcionalmente con imágenes de contexto visual (pizarrón, cuaderno).
+ * Backward-compatible: delega a Pro (fuente de verdad).
+ * Las imágenes se envían como contexto visual multimodal (fotos de pizarrón/cuaderno).
+ * Para transcripciones largas (>30k chars), las divide en chunks,
+ * analiza cada uno (con las imágenes como contexto) y fusiona los resultados.
  */
-async function analizarChunkUnico(
+export async function analizarTranscripcion(
   transcripcion: string,
   imagenes?: ImagenContexto[],
+): Promise<TranscriptAnalysisResult> {
+  return analizarTranscripcionPro(transcripcion, imagenes);
+}
+
+/**
+ * Analiza un solo chunk con modelo específico.
+ */
+async function analizarChunkConModelo(
+  chunk: string,
+  partNum: number,
+  totalParts: number,
+  imagenes: ImagenContexto[] | undefined,
+  modelName: string,
 ): Promise<TranscriptAnalysisResult> {
   const imgsHash = imagenes
     ? imagenes.map((i) => i.base64.slice(0, 64)).join(",")
     : "";
-  const key = cacheKey("transcript", `${transcripcion}|${imgsHash}`);
+  const key = cacheKey(
+    "chunk",
+    `${modelName}|${chunk}|${partNum}|${totalParts}|${imgsHash}`,
+  );
   const cached = await getCached<TranscriptAnalysisResult>(key);
   if (cached) return cached;
 
-  const model = getModel();
+  const model = getModelByName(modelName);
+  const prompt =
+    PROMPT_CHUNK.replace("{partNum}", String(partNum)).replace(
+      "{totalParts}",
+      String(totalParts),
+    ) + `\n\nFragmento:\n${chunk}`;
+
+  const parts: Part[] = [{ text: prompt }];
+  if (imagenes && imagenes.length > 0) {
+    parts.push(...buildImageParts(imagenes));
+  }
+
+  const result = await model.generateContent(parts);
+  const texto = result.response.text();
+  const parsed = parseAnalysis(extractJson(texto)) || EMPTY_RESULT;
+  await setCached(key, parsed, TTL.TRANSCRIPT);
+  return parsed;
+}
+
+/**
+ * Análisis directo para transcripciones que caben en un solo chunk,
+ * con modelo específico.
+ */
+async function analizarChunkUnicoConModelo(
+  transcripcion: string,
+  imagenes: ImagenContexto[] | undefined,
+  modelName: string,
+): Promise<TranscriptAnalysisResult> {
+  const imgsHash = imagenes
+    ? imagenes.map((i) => i.base64.slice(0, 64)).join(",")
+    : "";
+  const key = cacheKey("transcript", `${modelName}|${transcripcion}|${imgsHash}`);
+  const cached = await getCached<TranscriptAnalysisResult>(key);
+  if (cached) return cached;
+
+  const model = getModelByName(modelName);
   const prompt = `${PROMPT_TRANSCRIPCION}\n\nTranscripción:\n${transcripcion}`;
 
-  // Construir request multimodal: texto + imágenes como contexto
   const parts: Part[] = [{ text: prompt }];
   if (imagenes && imagenes.length > 0) {
     parts.push(...buildImageParts(imagenes));
     console.log(
-      `[TranscriptAnalysis] Enviando ${imagenes.length} imagen(es) como contexto visual`,
+      `[TranscriptAnalysis] [${modelName}] Enviando ${imagenes.length} imagen(es) como contexto visual`,
     );
   }
 

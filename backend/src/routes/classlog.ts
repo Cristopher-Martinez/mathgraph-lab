@@ -678,6 +678,45 @@ router.post("/:id/analyze-image", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /class-log/:id/reanalyze
+ * Re-analizar una clase con el pipeline de 3 fases
+ */
+router.post("/:id/reanalyze", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const classLog = await prisma.classLog.findUnique({ where: { id } });
+    if (!classLog) {
+      res.status(404).json({ error: "Clase no encontrada" });
+      return;
+    }
+
+    // Reset analysis flags
+    await prisma.classLog.update({
+      where: { id },
+      data: {
+        vectorized: false,
+        analyzed: false,
+        deepAnalyzed: false,
+        analysisModel: null,
+      },
+    });
+
+    // Enqueue new analysis
+    enqueueFullAnalysis(id);
+
+    res.json({ status: "reanalysis_queued", classId: id });
+  } catch (error: any) {
+    console.error("Error al re-analizar clase:", error);
+    res.status(500).json({ error: "Error al re-analizar: " + error.message });
+  }
+});
+
+/**
  * DELETE /class-log/:id
  * Eliminar una clase y hacer rollback de todos los artifacts generados
  */
