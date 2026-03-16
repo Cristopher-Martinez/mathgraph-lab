@@ -36,12 +36,12 @@ try {
       }
 
       if (job.name === "analyze-and-propagate") {
-        const { classId, transcript, images } = job.data;
+        const { classId } = job.data;
         console.log(
           `[JobQueue] Full analysis for class ${classId} (attempt ${job.attemptsMade + 1})`,
         );
         const { analyzeAndPropagate } = await import("./autoPropagation");
-        await analyzeAndPropagate(classId, transcript, images);
+        await analyzeAndPropagate(classId);
       } else {
         const { classId } = job.data;
         console.log(
@@ -54,6 +54,8 @@ try {
     {
       connection,
       concurrency: 1,
+      stalledInterval: 5 * 60 * 1000, // 5 min — analysis can take a while
+      lockDuration: 10 * 60 * 1000, // 10 min lock for long jobs
     },
   );
 
@@ -118,11 +120,12 @@ export async function enqueuePropagation(classId: number): Promise<void> {
  */
 export async function enqueueFullAnalysis(
   classId: number,
-  transcript: string,
-  images?: any[],
+  _transcript?: string,
+  _images?: any[],
 ): Promise<void> {
   if (queue && ready) {
-    await queue.add("analyze-and-propagate", { classId, transcript, images }, {
+    // Only pass classId — worker reads transcript from DB to avoid bloating Redis
+    await queue.add("analyze-and-propagate", { classId }, {
       jobId: `analyze-${classId}`,
     });
     console.log(`[JobQueue] Enqueued full analysis for class ${classId}`);
@@ -130,7 +133,7 @@ export async function enqueueFullAnalysis(
     // Fallback: direct fire-and-forget
     console.log(`[JobQueue] Fallback: direct full analysis for class ${classId}`);
     import("./autoPropagation").then(({ analyzeAndPropagate }) => {
-      analyzeAndPropagate(classId, transcript, images).catch((err) => {
+      analyzeAndPropagate(classId).catch((err) => {
         console.error("[JobQueue] Fallback analysis error:", err);
         failGeneration(classId, err.message || "Error en análisis");
       });

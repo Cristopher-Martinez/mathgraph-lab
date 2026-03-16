@@ -26,13 +26,10 @@ async function isCancelled(classId: number): Promise<boolean> {
  */
 export async function analyzeAndPropagate(
   classId: number,
-  transcript: string,
-  images?: any[],
 ): Promise<void> {
   console.log(`[AnalyzeAndPropagate] Starting for class ${classId}`);
 
   const { analizarTranscripcion } = await import("./transcriptAnalysis");
-  const { validarImagen } = await import("./imageAnalysis");
   const { indexClassTranscript } = await import("./ragService");
   const { broadcastGenerationUpdate } = await import("./websocket");
 
@@ -52,28 +49,23 @@ export async function analyzeAndPropagate(
       return;
     }
 
-    // 1. Prepare images
-    const imagenesContexto: any[] = [];
-    if (images && Array.isArray(images)) {
-      for (const img of images) {
-        if (!img.base64) continue;
-        const validacion = validarImagen(img.base64, img.mimeType || "image/jpeg");
-        if (validacion.valida) {
-          imagenesContexto.push({ base64: img.base64, mimeType: img.mimeType || "image/jpeg" });
-        }
-      }
+    // Read transcript from DB (avoids bloating BullMQ job data in Redis)
+    const classRecord = await prisma.classLog.findUnique({
+      where: { id: classId },
+      select: { transcript: true, images: { select: { url: true } } },
+    });
+    if (!classRecord) {
+      throw new Error(`ClassLog ${classId} not found`);
     }
 
     // 2. Analyze transcript
-    const textoTranscripcion = transcript?.trim() || "";
+    const textoTranscripcion = classRecord.transcript?.trim() || "";
     const textoFinal = textoTranscripcion ||
       "[Sin transcripción de voz. Analiza únicamente las imágenes adjuntas de la clase.]";
 
-    const analisis = (textoTranscripcion.length > 0 || imagenesContexto.length > 0)
-      ? await analizarTranscripcion(textoFinal, imagenesContexto.length > 0 ? imagenesContexto : undefined)
+    const analisis = textoTranscripcion.length > 0
+      ? await analizarTranscripcion(textoFinal)
       : { temas: [], formulas: [], tiposEjercicio: [], resumen: "Clase sin contenido.", conceptosClave: [], actividades: [] };
-
-    // Broadcast analysis done
 
     // Cancel check
     if (await isCancelled(classId)) return;

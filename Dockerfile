@@ -57,6 +57,7 @@ RUN mkdir -p /data
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV DATABASE_URL="file:/data/mathgraph.db"
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 EXPOSE 3001
 
