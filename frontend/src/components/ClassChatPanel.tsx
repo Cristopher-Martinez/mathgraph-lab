@@ -43,12 +43,38 @@ export default function ClassChatPanel({
   const [indexing, setIndexing] = useState(false);
   const [showSources, setShowSources] = useState<number | null>(null);
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Procesar archivos de imagen (reutilizado por file input, paste y drag)
+  const processImageFiles = (files: File[]) => {
+    const available = 5 - attachedImages.length;
+    if (available <= 0) return;
+    files.slice(0, available).forEach((file) => {
+      if (!file.type.startsWith("image/")) return;
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert(`Imagen "${file.name}" excede 10MB. Usa una más pequeña.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(",")[1];
+        setAttachedImages((prev) => [
+          ...prev,
+          { base64, mimeType: file.type || "image/jpeg", preview: dataUrl },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   // Cargar stats al montar
   useEffect(() => {
@@ -208,11 +234,21 @@ export default function ClassChatPanel({
               Tutor IA
             </h3>
           </div>
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <button
+                onClick={() => setMessages([])}
+                className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+                title="Limpiar chat">
+                🗑️
+              </button>
+            )}
           {stats && (
             <span className="text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">
               {stats.indexedClasses}/{stats.totalClasses} clases indexadas
             </span>
           )}
+          </div>
         </div>
         {classId && (
           <p className="text-[11px] text-indigo-500 dark:text-indigo-400 mt-0.5">
@@ -236,8 +272,17 @@ export default function ClassChatPanel({
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+      {/* Messages — supports drag & drop */}
+      <div
+        className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0 transition-colors ${dragOver ? "bg-indigo-50 dark:bg-indigo-900/20 ring-2 ring-inset ring-indigo-300 dark:ring-indigo-600" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const files = Array.from(e.dataTransfer.files);
+          processImageFiles(files);
+        }}>
         {messages.length === 0 && (
           <div className="text-center py-8">
             <span className="text-4xl block mb-3">🤖</span>
@@ -384,21 +429,7 @@ export default function ClassChatPanel({
             className="hidden"
             title="Seleccionar imágenes"
             onChange={(e) => {
-              const files = e.target.files;
-              if (!files) return;
-              Array.from(files).slice(0, 5 - attachedImages.length).forEach((file) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const dataUrl = reader.result as string;
-                  const base64 = dataUrl.split(",")[1];
-                  const mimeType = file.type || "image/jpeg";
-                  setAttachedImages((prev) => [
-                    ...prev,
-                    { base64, mimeType, preview: dataUrl },
-                  ]);
-                };
-                reader.readAsDataURL(file);
-              });
+              if (e.target.files) processImageFiles(Array.from(e.target.files));
               e.target.value = "";
             }}
           />
@@ -414,6 +445,18 @@ export default function ClassChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const imageFiles: File[] = [];
+              for (const item of Array.from(items)) {
+                if (item.type.startsWith("image/")) {
+                  const file = item.getAsFile();
+                  if (file) imageFiles.push(file);
+                }
+              }
+              if (imageFiles.length > 0) processImageFiles(imageFiles);
+            }}
             placeholder="Pregunta de matemáticas, sobre clases, o envía una foto..."
             disabled={loading}
             className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-300 focus:outline-none disabled:opacity-50 placeholder:text-gray-400"

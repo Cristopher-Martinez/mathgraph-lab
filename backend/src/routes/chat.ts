@@ -1,12 +1,24 @@
 import { Request, Response, Router } from "express";
+import rateLimit from "express-rate-limit";
+import RedisStore from "rate-limit-redis";
 import prisma from "../prismaClient";
 import {
   chatWithClasses,
   getRAGStats,
   indexClassTranscript,
 } from "../services/ragService";
+import { getRedis } from "../services/redisClient";
 
 const router = Router();
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: { error: "Demasiadas preguntas. Espera un momento." },
+  store: new RedisStore({
+    sendCommand: (...args: string[]) => (getRedis() as any).call(...args),
+  }),
+});
 
 /**
  * POST /chat
@@ -14,7 +26,7 @@ const router = Router();
  * Soporta preguntas generales de matemáticas + RAG con clases + imágenes.
  * Body: { question: string, classId?: number, history?: Array<{role, text}>, images?: Array<{base64, mimeType}> }
  */
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", chatLimiter, async (req: Request, res: Response) => {
   try {
     const { question, classId, dateFrom, dateTo, history, images } = req.body;
 
