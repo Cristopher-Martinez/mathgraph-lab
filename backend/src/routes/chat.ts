@@ -10,16 +10,30 @@ const router = Router();
 
 /**
  * POST /chat
- * Enviar un mensaje al chat RAG con streaming SSE.
- * Body: { question: string, classId?: number, history?: Array<{role, text}> }
+ * Enviar un mensaje al chat con streaming SSE.
+ * Soporta preguntas generales de matemáticas + RAG con clases + imágenes.
+ * Body: { question: string, classId?: number, history?: Array<{role, text}>, images?: Array<{base64, mimeType}> }
  */
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { question, classId, dateFrom, dateTo, history } = req.body;
+    const { question, classId, dateFrom, dateTo, history, images } = req.body;
 
     if (!question || typeof question !== "string" || !question.trim()) {
       res.status(400).json({ error: "question es requerido" });
       return;
+    }
+
+    // Validar imágenes si se envían
+    const validImages: Array<{ base64: string; mimeType: string }> = [];
+    if (images && Array.isArray(images)) {
+      for (const img of images.slice(0, 5)) { // Máximo 5 imágenes
+        if (img.base64 && typeof img.base64 === "string") {
+          validImages.push({
+            base64: img.base64,
+            mimeType: img.mimeType || "image/jpeg",
+          });
+        }
+      }
     }
 
     // SSE headers
@@ -34,6 +48,7 @@ router.post("/", async (req: Request, res: Response) => {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       history: history || [],
+      images: validImages.length > 0 ? validImages : undefined,
     });
 
     // Enviar fuentes primero

@@ -4,7 +4,14 @@ import MarkdownLatex from "./MarkdownLatex";
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+  images?: string[]; // base64 data URLs for display
   sources?: Array<{ classId: number; text: string; score: number }>;
+}
+
+interface ImageAttachment {
+  base64: string; // raw base64 (no data URL prefix)
+  mimeType: string;
+  preview: string; // data URL for display
 }
 
 interface RAGStats {
@@ -35,7 +42,9 @@ export default function ClassChatPanel({
   const [stats, setStats] = useState<RAGStats | null>(null);
   const [indexing, setIndexing] = useState(false);
   const [showSources, setShowSources] = useState<number | null>(null);
+  const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,12 +75,22 @@ export default function ClassChatPanel({
   };
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if ((!input.trim() && attachedImages.length === 0) || loading) return;
 
-    const question = input.trim();
+    const question = input.trim() || "Analiza esta imagen";
+    const imagePreviews = attachedImages.map((img) => img.preview);
+    const imagesToSend = attachedImages.map((img) => ({
+      base64: img.base64,
+      mimeType: img.mimeType,
+    }));
     setInput("");
+    setAttachedImages([]);
 
-    const userMsg: ChatMessage = { role: "user", text: question };
+    const userMsg: ChatMessage = {
+      role: "user",
+      text: question,
+      images: imagePreviews.length > 0 ? imagePreviews : undefined,
+    };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
@@ -90,6 +109,7 @@ export default function ClassChatPanel({
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           history,
+          images: imagesToSend.length > 0 ? imagesToSend : undefined,
         }),
       });
 
@@ -183,9 +203,9 @@ export default function ClassChatPanel({
       <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-lg">💬</span>
+            <span className="text-lg">🤖</span>
             <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-              Chat con tus Clases
+              Tutor IA
             </h3>
           </div>
           {stats && (
@@ -220,19 +240,19 @@ export default function ClassChatPanel({
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <span className="text-4xl block mb-3">📚</span>
+            <span className="text-4xl block mb-3">🤖</span>
             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-              Pregúntame sobre tus clases
+              Tu tutor de matemáticas
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-[240px] mx-auto">
-              Puedo buscar en tus transcripciones y ayudarte a repasar
-              conceptos, fórmulas y temas vistos en clase.
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-[280px] mx-auto">
+              Pregúntame cualquier cosa de matemáticas, sobre tus clases, o envía una foto de un problema para resolverlo.
             </p>
             <div className="mt-4 flex flex-wrap gap-1.5 justify-center">
               {[
                 "¿Qué temas hemos visto?",
-                "Explica la última fórmula",
+                "Resuelve x² - 5x + 6 = 0",
                 "Resume la clase más reciente",
+                "|x - 3| ≤ 5",
               ].map((q) => (
                 <button
                   key={q}
@@ -310,7 +330,21 @@ export default function ClassChatPanel({
                   )}
                 </>
               ) : (
-                <span>{msg.text}</span>
+                <>
+                  {msg.images && msg.images.length > 0 && (
+                    <div className="flex gap-1.5 mb-1.5 flex-wrap">
+                      {msg.images.map((src, j) => (
+                        <img
+                          key={j}
+                          src={src}
+                          alt={`Imagen ${j + 1}`}
+                          className="w-20 h-20 object-cover rounded border border-white/20"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <span>{msg.text}</span>
+                </>
               )}
             </div>
           </div>
@@ -320,19 +354,73 @@ export default function ClassChatPanel({
 
       {/* Input */}
       <div className="px-3 py-2.5 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+        {/* Image previews */}
+        {attachedImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {attachedImages.map((img, i) => (
+              <div key={i} className="relative group">
+                <img
+                  src={img.preview}
+                  alt={`Adjunto ${i + 1}`}
+                  className="w-16 h-16 object-cover rounded-lg border border-gray-300 dark:border-gray-600"
+                />
+                <button
+                  onClick={() =>
+                    setAttachedImages((prev) => prev.filter((_, j) => j !== i))
+                  }
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            title="Seleccionar imágenes"
+            onChange={(e) => {
+              const files = e.target.files;
+              if (!files) return;
+              Array.from(files).slice(0, 5 - attachedImages.length).forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  const base64 = dataUrl.split(",")[1];
+                  const mimeType = file.type || "image/jpeg";
+                  setAttachedImages((prev) => [
+                    ...prev,
+                    { base64, mimeType, preview: dataUrl },
+                  ]);
+                };
+                reader.readAsDataURL(file);
+              });
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading || attachedImages.length >= 5}
+            className="px-2.5 py-2 text-gray-400 hover:text-indigo-500 dark:hover:text-indigo-400 disabled:opacity-30 transition-colors flex-shrink-0"
+            title="Adjuntar imagen">
+            📷
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Pregunta sobre tus clases..."
+            placeholder="Pregunta de matemáticas, sobre clases, o envía una foto..."
             disabled={loading}
             className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-300 focus:outline-none disabled:opacity-50 placeholder:text-gray-400"
           />
           <button
             onClick={handleSend}
-            disabled={loading || !input.trim()}
+            disabled={loading || (!input.trim() && attachedImages.length === 0)}
             className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium flex-shrink-0">
             {loading ? "..." : "→"}
           </button>

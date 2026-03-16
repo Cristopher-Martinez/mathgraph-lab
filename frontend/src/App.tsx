@@ -7,10 +7,8 @@ import {
   Routes,
 } from "react-router-dom";
 import GenerationStatusPanel from "./components/GenerationStatusPanel";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { GenerationProvider } from "./context/GenerationContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";import { GenerationProvider } from "./context/GenerationContext";
 import { useTheme } from "./context/ThemeContext";
-import AITutorPage from "./pages/AITutorPage";
 import ApuntesPage from "./pages/ApuntesPage";
 import ChatPage from "./pages/ChatPage";
 import ClassLogPage from "./pages/ClassLogPage";
@@ -28,9 +26,8 @@ const navItems = [
   { to: "/dag", label: "Mapa DAG", icon: "🗺️" },
   { to: "/practice", label: "Práctica", icon: "✏️" },
   { to: "/geometry", label: "Geometría", icon: "📐" },
-  { to: "/ai-tutor", label: "Tutor IA", icon: "🤖" },
+  { to: "/chat", label: "Tutor IA", icon: "🤖" },
   { to: "/training", label: "Entrenamiento", icon: "🎯" },
-  { to: "/chat", label: "Chat Clases", icon: "💬" },
   { to: "/apuntes", label: "Apuntes", icon: "📋" },
   { to: "/class-log", label: "Registro", icon: "📝" },
 ];
@@ -244,11 +241,7 @@ function AppContent() {
                 />
                 <Route
                   path="/ai-tutor"
-                  element={
-                    <ProtectedRoute>
-                      <AITutorPage />
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/chat" replace />}
                 />
                 <Route
                   path="/training"

@@ -420,6 +420,7 @@ export async function chatWithClasses(
     dateFrom?: string;
     dateTo?: string;
     history?: Array<{ role: "user" | "assistant"; text: string }>;
+    images?: Array<{ base64: string; mimeType: string }>;
   },
 ): Promise<{
   stream: AsyncIterable<string>;
@@ -473,28 +474,61 @@ export async function chatWithClasses(
     : "";
 
   // 5. Prompt del sistema
-  const prompt = `Eres un asistente de estudio inteligente que ayuda a un estudiante de matemáticas a entender sus clases.
+  const hasContext = context && context.trim().length > 0;
+  const hasImages = options?.images && options.images.length > 0;
+
+  const prompt = hasContext
+    ? `Eres un asistente de estudio inteligente y tutor de matemáticas.
 Tienes acceso a fragmentos de transcripciones de clases reales del estudiante.
 
 REGLAS:
-- Responde basándote ÚNICAMENTE en la información de los fragmentos proporcionados.
-- Si la información no está en los fragmentos, dilo honestamente: "No encuentro esa información en tus clases registradas."
-- Cita la clase de donde obtienes la información cuando sea relevante (ej: "En tu clase del 5 de marzo...").
+- Si la pregunta se relaciona con los fragmentos de clase, responde basándote en ellos y cita la clase.
+- Si la pregunta es sobre matemáticas en general (resolver un problema, explicar un concepto), respóndela como tutor experto paso a paso, aunque no esté en los fragmentos.
 - Usa LaTeX para fórmulas matemáticas cuando sea necesario (con $...$ para inline o $$...$$ para block).
-- Sé conciso y directo. No inventes información.
+- Sé conciso y directo.
 - Responde en español.
+${hasImages ? "- Si el estudiante envía imágenes, analízalas y responde basándote en su contenido." : ""}
 
 FRAGMENTOS DE CLASES:
-${context || "No hay fragmentos relevantes para esta consulta."}
+${context}
+
+${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n` : ""}
+PREGUNTA DEL ESTUDIANTE: ${question}`
+    : `Eres un tutor de matemáticas experto especializado en álgebra y geometría analítica.
+Ayudas a estudiantes a entender conceptos y resolver problemas paso a paso.
+
+REGLAS:
+- Explica paso a paso cómo resolver el problema o concepto.
+- Nunca omitas pasos algebraicos.
+- Guía al estudiante a través de cada transformación.
+- Usa $...$ para matemáticas en línea y $$...$$ para ecuaciones destacadas.
+- Usa **texto** para resaltar conceptos importantes.
+- Sé conciso y directo.
+- Responde en español.
+${hasImages ? "- Si el estudiante envía imágenes, analízalas y responde basándote en su contenido." : ""}
 
 ${historyText ? `CONVERSACIÓN PREVIA:\n${historyText}\n` : ""}
 PREGUNTA DEL ESTUDIANTE: ${question}`;
 
-  // 6. Generar respuesta con streaming
+  // 6. Construir partes del contenido (texto + imágenes opcionales)
+  const contentParts: any[] = [prompt];
+
+  if (hasImages) {
+    for (const img of options!.images!) {
+      contentParts.push({
+        inlineData: {
+          data: img.base64,
+          mimeType: img.mimeType,
+        },
+      });
+    }
+  }
+
+  // 7. Generar respuesta con streaming
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  const result = await model.generateContentStream(prompt);
+  const result = await model.generateContentStream(contentParts);
 
   const sources = chunks.map((c) => ({
     classId: c.classId,
