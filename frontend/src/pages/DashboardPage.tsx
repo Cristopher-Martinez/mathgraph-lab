@@ -1,26 +1,23 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Latex from "../components/Latex";
 import TopicCard from "../components/TopicCard";
 import { api } from "../services/api";
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [topics, setTopics] = useState<any[]>([]);
   const [progress, setProgress] = useState<any[]>([]);
   const [formulas, setFormulas] = useState<any[]>([]);
+  const [reviewStats, setReviewStats] = useState<any>(null);
+  const [dueReviews, setDueReviews] = useState<any[]>([]);
 
   useEffect(() => {
-    api
-      .getTopics()
-      .then(setTopics)
-      .catch(() => {});
-    api
-      .getProgress()
-      .then(setProgress)
-      .catch(() => {});
-    api
-      .getFormulas()
-      .then(setFormulas)
-      .catch(() => {});
+    api.getTopics().then(setTopics).catch(() => {});
+    api.getProgress().then(setProgress).catch(() => {});
+    api.getFormulas().then(setFormulas).catch(() => {});
+    api.getReviewStats().then(setReviewStats).catch(() => {});
+    api.getDueReviews().then((r) => setDueReviews(r.slice(0, 5))).catch(() => {});
   }, []);
 
   const completedCount = progress.filter((p) => p.completed).length;
@@ -57,6 +54,39 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Repaso Pendiente (Spaced Repetition) */}
+      {reviewStats && reviewStats.dueToday > 0 && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-5 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                🔁 Repasos Pendientes
+              </h2>
+              <p className="text-amber-100 text-sm mt-1">
+                {reviewStats.dueToday} ejercicio(s) para repasar hoy •{" "}
+                {reviewStats.mastered} dominado(s)
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/practice")}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+              Repasar ahora
+            </button>
+          </div>
+          {dueReviews.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {dueReviews.map((r: any) => (
+                <span
+                  key={r.exerciseId}
+                  className="text-xs bg-white/15 rounded-full px-3 py-1">
+                  {r.exercise?.topic?.name || "Tema"} — Intervalo {r.interval}d
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Grid de Temas */}
       <div>

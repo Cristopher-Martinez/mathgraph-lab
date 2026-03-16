@@ -45,6 +45,7 @@ model Exercise {
     steps              String?
     socratic           String?
     tip                ExerciseTip?
+    reviews            ExerciseReview[]
 }
 
 model Progress {
@@ -139,4 +140,60 @@ model ExerciseTip {
     classContext String // JSON array
     createdAt    DateTime @default(now())
     exercise     Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+}
+
+// ─── Spaced Repetition (SM-2) ───
+
+model ExerciseReview {
+    id          Int       @id @default(autoincrement())
+    exerciseId  Int
+    ease        Float     @default(2.5)
+    interval    Int       @default(0) // días
+    repetitions Int       @default(0)
+    nextReview  DateTime
+    lastReview  DateTime?
+    lastScore   Float? // 0-5 (SM-2 scale)
+    exercise    Exercise  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+    @@unique([exerciseId])
+    @@index([nextReview])
+}
+
+// ─── Chat Persistente ───
+
+model ChatSession {
+    id        Int           @id @default(autoincrement())
+    title     String?
+    createdAt DateTime      @default(now())
+    updatedAt DateTime      @updatedAt
+    messages  ChatMessage[]
+}
+
+model ChatMessage {
+    id        Int         @id @default(autoincrement())
+    sessionId Int
+    role      String // "user" | "assistant"
+    text      String
+    images    String? // JSON array of image URLs/base64
+    sources   String? // JSON array of RAG sources
+    createdAt DateTime    @default(now())
+    session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+    @@index([sessionId])
+}
+
+// ─── Análisis de Patrones de Error ───
+
+model ErrorPattern {
+    id           Int      @id @default(autoincrement())
+    exerciseId   Int?
+    topicId      Int?
+    errorType    String // "signo", "operacion", "conceptual", "calculo", "notacion"
+    description  String
+    studentAnswer String
+    expectedAnswer String?
+    createdAt    DateTime @default(now())
+
+    @@index([topicId])
+    @@index([errorType])
 }

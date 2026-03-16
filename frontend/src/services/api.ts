@@ -296,4 +296,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ exerciseId }),
     }),
+
+  // Spaced Repetition
+  getDueReviews: () => request<any[]>("/reviews/due"),
+  getReviewStats: () =>
+    request<{
+      dueToday: number;
+      dueThisWeek: number;
+      totalReviewed: number;
+      mastered: number;
+    }>("/reviews/stats"),
+  recordReview: (exerciseId: number, score: number) =>
+    request<any>("/reviews/record", {
+      method: "POST",
+      body: JSON.stringify({ exerciseId, score }),
+    }),
+
+  // Chat Sessions
+  getChatSessions: () => request<any[]>("/chat/sessions"),
+  getChatMessages: (sessionId: number) =>
+    request<any[]>(`/chat/sessions/${sessionId}/messages`),
+  deleteChatSession: (sessionId: number) =>
+    request<any>(`/chat/sessions/${sessionId}`, { method: "DELETE" }),
 };

@@ -44,6 +44,7 @@ export default function ClassChatPanel({
   const [showSources, setShowSources] = useState<number | null>(null);
   const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [sessionId, setSessionId] = useState<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,6 +137,7 @@ export default function ClassChatPanel({
           dateTo: dateTo || undefined,
           history,
           images: imagesToSend.length > 0 ? imagesToSend : undefined,
+          sessionId: sessionId || undefined,
         }),
       });
 
@@ -171,7 +173,9 @@ export default function ClassChatPanel({
             try {
               const parsed = JSON.parse(line.slice(6));
 
-              if (lastEventType === "sources") {
+              if (lastEventType === "session" && parsed.sessionId) {
+                setSessionId(parsed.sessionId);
+              } else if (lastEventType === "sources") {
                 sources = parsed.sources || [];
               } else if (lastEventType === "chunk" && parsed.text) {
                 assistantText += parsed.text;
@@ -237,7 +241,7 @@ export default function ClassChatPanel({
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
               <button
-                onClick={() => setMessages([])}
+                onClick={() => { setMessages([]); setSessionId(null); }}
                 className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
                 title="Limpiar chat">
                 🗑️
@@ -371,6 +375,16 @@ export default function ClassChatPanel({
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {/* Botón "Practicar similar" para respuestas con contenido matemático */}
+                  {msg.text && msg.text.length > 100 && (msg.text.includes("$") || msg.text.includes("paso")) && !loading && (
+                    <div className="mt-2 pt-1.5 border-t border-gray-200 dark:border-gray-600">
+                      <button
+                        onClick={() => setInput(`Dame un ejercicio similar para practicar: ${messages[i - 1]?.text?.slice(0, 80) || ""}`)}
+                        className="text-[11px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium transition-colors">
+                        ✏️ Practicar algo similar
+                      </button>
                     </div>
                   )}
                 </>

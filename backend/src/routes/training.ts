@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createHash, randomUUID } from "crypto";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
+import { recordReview } from "../services/spacedRepetition";
 import { getRedis } from "../services/redisClient";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
@@ -458,13 +459,19 @@ router.post("/answer", async (req: Request, res: Response) => {
         1;
     }
 
-    // 3. Record result
+    // 3. Record result + spaced repetition
     const ex = session.exercises[session.current];
     session.results.push({
       correct: isCorrect,
       question: ex?.latex || ex?.pregunta || "",
       timeout: !!timeout,
     });
+
+    // Registrar en spaced repetition
+    if (ex?.id) {
+      const srScore = isCorrect ? (reqScore || 80) : (timeout ? 10 : 30);
+      recordReview(ex.id, srScore).catch(() => {});
+    }
 
     // 4. Advance current
     session.current++;

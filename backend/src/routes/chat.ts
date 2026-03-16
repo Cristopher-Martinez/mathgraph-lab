@@ -7,6 +7,13 @@ import {
   getRAGStats,
   indexClassTranscript,
 } from "../services/ragService";
+import {
+  deleteSession,
+  getSessionMessages,
+  getOrCreateSession,
+  listSessions,
+  saveMessage,
+} from "../services/chatPersistence";
 import { getRedis } from "../services/redisClient";
 
 const router = Router();
@@ -28,7 +35,7 @@ const chatLimiter = rateLimit({
  */
 router.post("/", chatLimiter, async (req: Request, res: Response) => {
   try {
-    const { question, classId, dateFrom, dateTo, history, images } = req.body;
+    const { question, classId, dateFrom, dateTo, history, images, sessionId } = req.body;
 
     if (!question || typeof question !== "string" || !question.trim()) {
       res.status(400).json({ error: "question es requerido" });
@@ -38,7 +45,7 @@ router.post("/", chatLimiter, async (req: Request, res: Response) => {
     // Validar imágenes si se envían
     const validImages: Array<{ base64: string; mimeType: string }> = [];
     if (images && Array.isArray(images)) {
-      for (const img of images.slice(0, 5)) { // Máximo 5 imágenes
+      for (const img of images.slice(0, 5)) {
         if (img.base64 && typeof img.base64 === "string") {
           validImages.push({
             base64: img.base64,
@@ -48,12 +55,24 @@ router.post("/", chatLimiter, async (req: Request, res: Response) => {
       }
     }
 
+    // Persistir sesión y mensaje del usuario
+    const session = await getOrCreateSession(sessionId || undefined);
+    await saveMessage({
+      sessionId: session.id,
+      role: "user",
+      text: question.trim(),
+      images: validImages.length > 0 ? validImages.map(() => "[imagen]") : undefined,
+    });
+
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
+
+    // Enviar sessionId al cliente
+    res.write(`event: session\ndata: ${JSON.stringify({ sessionId: session.id })}\n\n`);
 
     const { stream, sources } = await chatWithClasses(question.trim(), {
       classId: classId || undefined,
@@ -67,9 +86,19 @@ router.post("/", chatLimiter, async (req: Request, res: Response) => {
     res.write(`event: sources\ndata: ${JSON.stringify({ sources })}\n\n`);
 
     // Stream de respuesta
+    let fullResponse = "";
     for await (const text of stream) {
+      fullResponse += text;
       res.write(`event: chunk\ndata: ${JSON.stringify({ text })}\n\n`);
     }
+
+    // Persistir respuesta del asistente
+    await saveMessage({
+      sessionId: session.id,
+      role: "assistant",
+      text: fullResponse,
+      sources: sources.length > 0 ? sources : undefined,
+    });
 
     res.write(`event: done\ndata: {}\n\n`);
     res.end();
@@ -188,6 +217,66 @@ router.post("/index-all", async (_req: Request, res: Response) => {
   } catch (err: any) {
     console.error("[Chat RAG] Error index-all:", err);
     res.status(500).json({ error: "Error al indexar las clases" });
+  }
+});
+
+// ─── Chat Sessions ───
+
+/**
+ * GET /chat/sessions
+ * Listar sesiones de chat recientes
+ */
+router.get("/sessions", async (_req: Request, res: Response) => {
+  try {
+    const sessions = await listSessions();
+    res.json(sessions);
+  } catch (err: any) {
+    console.error("[Chat] Error sessions:", err);
+    res.status(500).json({ error: "Error al obtener sesiones" });
+  }
+});
+
+/**
+ * GET /chat/sessions/:id/messages
+ * Obtener mensajes de una sesión
+ */
+router.get("/sessions/:id/messages", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    const messages = await getSessionMessages(id);
+    // Parse JSON fields
+    const parsed = messages.map((m) => ({
+      ...m,
+      images: m.images ? JSON.parse(m.images) : undefined,
+      sources: m.sources ? JSON.parse(m.sources) : undefined,
+    }));
+    res.json(parsed);
+  } catch (err: any) {
+    console.error("[Chat] Error messages:", err);
+    res.status(500).json({ error: "Error al obtener mensajes" });
+  }
+});
+
+/**
+ * DELETE /chat/sessions/:id
+ * Eliminar una sesión
+ */
+router.delete("/sessions/:id", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "id inválido" });
+      return;
+    }
+    await deleteSession(id);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[Chat] Error deleting session:", err);
+    res.status(500).json({ error: "Error al eliminar sesión" });
   }
 });
 

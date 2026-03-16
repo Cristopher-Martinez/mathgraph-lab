@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
+import { classifyAndRecordError } from "../services/errorAnalysis";
+import { recordReview, scoreToQuality } from "../services/spacedRepetition";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
@@ -478,6 +480,14 @@ router.post("/answer-stream", async (req: Request, res: Response) => {
     } else {
       resultPayload.step = step;
       resultPayload.tutorQuestion = currentStepData.question;
+      // Clasificar error en background (no bloquea respuesta)
+      classifyAndRecordError({
+        exerciseId: exercise.id,
+        topicId: exercise.topicId,
+        studentAnswer: answer,
+        expectedAnswer: currentStepData.expected,
+        exerciseLatex: exercise.latex,
+      }).catch(() => {});
     }
     res.write(`event: result\ndata: ${JSON.stringify(resultPayload)}\n\n`);
 
@@ -670,6 +680,9 @@ router.post("/summary", async (req: Request, res: Response) => {
     const hints = typeof hintsUsed === "number" ? hintsUsed : 0;
     const revealed = typeof stepsRevealed === "number" ? stepsRevealed : 0;
     const score = calculateScore(hints, revealed);
+
+    // Registrar en spaced repetition
+    recordReview(exerciseId, score).catch(() => {});
 
     res.json({
       exerciseId,
