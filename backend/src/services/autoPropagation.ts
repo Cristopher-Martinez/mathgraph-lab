@@ -587,8 +587,21 @@ Reglas:
       const parsed = parseGeminiJSON(text);
 
       if (parsed) {
-        await prisma.topicDoc.create({
-          data: {
+        await prisma.topicDoc.upsert({
+          where: { topicId: topicInfo.id },
+          update: {
+            conceptos: parsed.conceptos || "",
+            ejemplos: JSON.stringify(
+              Array.isArray(parsed.ejemplos) ? parsed.ejemplos : [],
+            ),
+            casosDeUso: JSON.stringify(
+              Array.isArray(parsed.casosDeUso) ? parsed.casosDeUso : [],
+            ),
+            curiosidades: JSON.stringify(
+              Array.isArray(parsed.curiosidades) ? parsed.curiosidades : [],
+            ),
+          },
+          create: {
             topicId: topicInfo.id,
             conceptos: parsed.conceptos || "",
             ejemplos: JSON.stringify(
