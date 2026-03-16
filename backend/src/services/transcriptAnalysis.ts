@@ -247,8 +247,8 @@ async function analizarChunk(
 async function fusionarAnalisis(
   parciales: TranscriptAnalysisResult[],
 ): Promise<TranscriptAnalysisResult> {
-  // Si solo hay 2-3 parciales, fusión local es suficiente
-  if (parciales.length <= 3) {
+  // Si solo hay 2-5 parciales, fusión local es suficiente (evita OOM con strings gigantes)
+  if (parciales.length <= 5) {
     return fusionLocal(parciales);
   }
 
