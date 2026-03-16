@@ -1,6 +1,6 @@
 import cors from "cors";
 import "dotenv/config";
-import express from "express";
+import express, { RequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import { createServer } from "http";
 import path from "path";
@@ -17,6 +17,7 @@ import progressRouter from "./routes/progress";
 import topicsRouter from "./routes/topics";
 import trainingRouter from "./routes/training";
 import tutorRouter from "./routes/tutor";
+import { cleanupOrphanedGenerations } from "./services/generationStatus";
 import "./services/jobQueue"; // Start BullMQ worker
 import { getRedis } from "./services/redisClient";
 import { initWebSocket } from "./services/websocket";
@@ -57,6 +58,17 @@ const authLimiter = rateLimit({
   }),
 });
 
+// Class creation rate limiter: 3 classes/min (expensive AI operation)
+const classLogLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  message: { error: "Demasiadas clases creadas. Espera un momento." },
+  store: new RedisStore({
+    sendCommand: (...args: string[]) => (getRedis() as any).call(...args),
+    prefix: "rl:classlog:",
+  }),
+});
+
 // Routes (direct and /api prefixed for production)
 app.use("/auth", authLimiter, authRouter);
 app.use("/api/auth", authLimiter, authRouter);
@@ -89,7 +101,12 @@ app.use("/progress", progressRouter);
 app.use("/training", trainingRouter);
 app.use("/tutor", tutorRouter);
 app.use("/chat", chatRouter);
-app.use("/class-log", classlogRouter);
+// Rate limit expensive class creation (POST only)
+const classLogPostLimiter: RequestHandler = (req, res, next) => {
+  if (req.method === "POST") return classLogLimiter(req, res, next);
+  next();
+};
+app.use("/class-log", classLogPostLimiter, classlogRouter);
 app.use("/notes", notesRouter);
 
 // /api prefix routes (for production without Vite proxy)
@@ -101,7 +118,7 @@ app.use("/api/ai", aiRouter);
 app.use("/api/progress", progressRouter);
 app.use("/api/training", trainingRouter);
 app.use("/api/tutor", tutorRouter);
-app.use("/api/class-log", classlogRouter);
+app.use("/api/class-log", classLogPostLimiter, classlogRouter);
 app.use("/api/notes", notesRouter);
 
 server.listen(PORT, async () => {
@@ -112,6 +129,12 @@ server.listen(PORT, async () => {
     const redis = getRedis();
     await redis.ping();
     console.log("\x1b[32m✓ Redis connected\x1b[0m");
+
+    // Clean up orphaned generations from previous crashes
+    const cleaned = await cleanupOrphanedGenerations();
+    if (cleaned > 0) {
+      console.log(`\x1b[33m⚠ Cleaned ${cleaned} orphaned generation(s)\x1b[0m`);
+    }
   } catch {
     console.warn("\x1b[33m⚠ Redis not reachable — some features may be limited\x1b[0m");
   }

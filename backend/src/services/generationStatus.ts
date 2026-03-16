@@ -124,3 +124,22 @@ export async function getActiveGenerations(): Promise<GenerationStatus[]> {
 export async function getAllRecentStatuses(): Promise<GenerationStatus[]> {
   return redisGetAll();
 }
+
+/** Clean up orphaned "running" generations older than maxAgeMs (default: 10 min). */
+export async function cleanupOrphanedGenerations(
+  maxAgeMs: number = 10 * 60 * 1000,
+): Promise<number> {
+  const all = await redisGetAll();
+  const now = Date.now();
+  let cleaned = 0;
+  for (const gen of all) {
+    if (gen.status === "running" && now - gen.startedAt > maxAgeMs) {
+      gen.status = "error";
+      gen.error = "Generación interrumpida (reinicio del servidor)";
+      gen.completedAt = now;
+      await updateAndBroadcast(gen);
+      cleaned++;
+    }
+  }
+  return cleaned;
+}

@@ -1,5 +1,0 @@
-{
-  "sessionId": "64f3b2cd-ca43-4475-b41a-89e46b60108b",
-  "goal": "quiero que cada vez que se corra npm run dev el comando mate todo lo que corra en ese puerto actualmente para evitar que falle",
-  "startedAt": "2026-03-15T20:11:27.680Z"
-}
