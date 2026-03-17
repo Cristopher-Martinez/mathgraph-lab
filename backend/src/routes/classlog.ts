@@ -17,7 +17,7 @@ import {
   procesarImagenesBatch,
   validarImagen,
 } from "../services/imageAnalysis";
-import { enqueueFullAnalysis, cancelGeneration } from "../services/jobQueue";
+import { cancelGeneration, enqueueFullAnalysis } from "../services/jobQueue";
 import { deleteGenerationStatus } from "../services/redisClient";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
@@ -70,7 +70,11 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Validar y preparar imágenes
-    const imagenesValidas: { base64: string; mimeType: string; caption?: string }[] = [];
+    const imagenesValidas: {
+      base64: string;
+      mimeType: string;
+      caption?: string;
+    }[] = [];
     const erroresValidacion: string[] = [];
 
     if (tieneImagenes) {
@@ -106,7 +110,9 @@ router.post("/", async (req: Request, res: Response) => {
 
     if (imagenesValidas.length > 0) {
       try {
-        console.log(`[ClassLog] Procesando ${imagenesValidas.length} imágenes para extracción de contenido...`);
+        console.log(
+          `[ClassLog] Procesando ${imagenesValidas.length} imágenes para extracción de contenido...`,
+        );
         const batchResult = await procesarImagenesBatch(imagenesValidas);
 
         // Construir texto extraído de imágenes para enriquecer la transcripción
@@ -115,30 +121,46 @@ router.post("/", async (req: Request, res: Response) => {
           const r = batchResult.resultados[i];
           const partes: string[] = [];
           if (r.textoDetectado) partes.push(r.textoDetectado);
-          if (r.formulas.length > 0) partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
-          if (r.ecuaciones.length > 0) partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
-          if (r.diagramas.length > 0) partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
-          if (r.desigualdades.length > 0) partes.push(`Desigualdades: ${r.desigualdades.join(", ")}`);
+          if (r.formulas.length > 0)
+            partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
+          if (r.ecuaciones.length > 0)
+            partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
+          if (r.diagramas.length > 0)
+            partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
+          if (r.desigualdades.length > 0)
+            partes.push(`Desigualdades: ${r.desigualdades.join(", ")}`);
           if (partes.length > 0) textosExtraidos.push(partes.join("\n"));
         }
 
         if (textosExtraidos.length > 0) {
-          textoImagenes = "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" + textosExtraidos.join("\n---\n");
+          textoImagenes =
+            "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" +
+            textosExtraidos.join("\n---\n");
         }
 
         // Guardar metadata de imágenes con captions extraídos (no base64 completo)
         imagenesData = batchResult.resultados.map((r, i) => ({
           url: `[imagen-${i + 1}]`,
-          caption: (r.textoDetectado || "").substring(0, 500) || imagenesValidas[i]?.caption || "",
+          caption:
+            (r.textoDetectado || "").substring(0, 500) ||
+            imagenesValidas[i]?.caption ||
+            "",
         }));
 
         for (const err of batchResult.errores) {
-          erroresValidacion.push(`Imagen ${err.indice + 1}: error en análisis — ${err.error}`);
+          erroresValidacion.push(
+            `Imagen ${err.indice + 1}: error en análisis — ${err.error}`,
+          );
         }
 
-        console.log(`[ClassLog] Imágenes procesadas: ${batchResult.resultados.length} OK, ${batchResult.errores.length} errores, texto extraído: ${textoImagenes.length} chars`);
+        console.log(
+          `[ClassLog] Imágenes procesadas: ${batchResult.resultados.length} OK, ${batchResult.errores.length} errores, texto extraído: ${textoImagenes.length} chars`,
+        );
       } catch (err: any) {
-        console.warn("[ClassLog] Error procesando imágenes batch (fallback sin análisis):", err.message);
+        console.warn(
+          "[ClassLog] Error procesando imágenes batch (fallback sin análisis):",
+          err.message,
+        );
         imagenesData = imagenesValidas.map((img, i) => ({
           url: `[imagen-${i + 1}]`,
           caption: img.caption || "",
@@ -169,7 +191,9 @@ router.post("/", async (req: Request, res: Response) => {
 
     if (claseExistente) {
       // ─── FUSIÓN: misma fecha = misma clase ───
-      console.log(`[ClassLog] Fusionando con clase existente #${claseExistente.id} (fecha: ${date})`);
+      console.log(
+        `[ClassLog] Fusionando con clase existente #${claseExistente.id} (fecha: ${date})`,
+      );
 
       // Limpiar artifacts del análisis previo (ejercicios, topics, notas, dependencias)
       // para evitar duplicados cuando el pipeline re-analice el contenido combinado
@@ -177,7 +201,9 @@ router.post("/", async (req: Request, res: Response) => {
 
       // Combinar transcripción existente + nuevo contenido
       const transcripcionMerged = claseExistente.transcript
-        ? claseExistente.transcript + "\n\n--- [Contenido adicional] ---\n\n" + textoCompleto
+        ? claseExistente.transcript +
+          "\n\n--- [Contenido adicional] ---\n\n" +
+          textoCompleto
         : textoCompleto;
 
       // Agregar nuevas imágenes a la clase existente
@@ -198,7 +224,9 @@ router.post("/", async (req: Request, res: Response) => {
 
       // Actualizar transcripción, título y reset de flags de análisis
       // Título: se mantiene el más reciente (el de la nueva subida si se envía)
-      const newHash = createHash("sha256").update(transcripcionMerged).digest("hex");
+      const newHash = createHash("sha256")
+        .update(transcripcionMerged)
+        .digest("hex");
       await prisma.classLog.update({
         where: { id: claseExistente.id },
         data: {
@@ -224,9 +252,14 @@ router.post("/", async (req: Request, res: Response) => {
       await deleteGenerationStatus(claseExistente.id, "class");
 
       // Re-encolar análisis completo de 3 fases con contenido combinado
-      enqueueFullAnalysis(claseExistente.id, undefined, undefined, true).catch((err) => {
-        console.error("[ClassLog] Error encolando re-análisis (fusión):", err);
-      });
+      enqueueFullAnalysis(claseExistente.id, undefined, undefined, true).catch(
+        (err) => {
+          console.error(
+            "[ClassLog] Error encolando re-análisis (fusión):",
+            err,
+          );
+        },
+      );
 
       const totalImagenes = claseExistente.images.length + imagenesData.length;
 
@@ -818,13 +851,18 @@ router.post("/:id/analyze-image", async (req: Request, res: Response) => {
     for (const r of batchResult.resultados) {
       const partes: string[] = [];
       if (r.textoDetectado) partes.push(r.textoDetectado);
-      if (r.formulas.length > 0) partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
-      if (r.ecuaciones.length > 0) partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
-      if (r.diagramas.length > 0) partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
+      if (r.formulas.length > 0)
+        partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
+      if (r.ecuaciones.length > 0)
+        partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
+      if (r.diagramas.length > 0)
+        partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
       if (partes.length > 0) textosExtraidos.push(partes.join("\n"));
     }
     if (textosExtraidos.length > 0) {
-      const textoImagenes = "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" + textosExtraidos.join("\n---\n");
+      const textoImagenes =
+        "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" +
+        textosExtraidos.join("\n---\n");
       await prisma.classLog.update({
         where: { id },
         data: { transcript: clase.transcript + textoImagenes },
@@ -946,17 +984,25 @@ router.post("/:id/merge", async (req: Request, res: Response) => {
     });
 
     if (clasesDelDia.length === 0) {
-      res.status(400).json({ error: "No hay otras clases del mismo día para fusionar" });
+      res
+        .status(400)
+        .json({ error: "No hay otras clases del mismo día para fusionar" });
       return;
     }
 
-    console.log(`[ClassLog] Fusión manual: clase #${id} absorbe ${clasesDelDia.length} clase(s) del mismo día`);
+    console.log(
+      `[ClassLog] Fusión manual: clase #${id} absorbe ${clasesDelDia.length} clase(s) del mismo día`,
+    );
 
     // Combinar transcripciones de todas las fuentes en la clase target
     let transcripcionCombinada = target.transcript || "";
     for (const fuente of clasesDelDia) {
       if (fuente.transcript && fuente.transcript.trim().length > 0) {
-        transcripcionCombinada += "\n\n--- [Contenido fusionado de clase #" + fuente.id + "] ---\n\n" + fuente.transcript;
+        transcripcionCombinada +=
+          "\n\n--- [Contenido fusionado de clase #" +
+          fuente.id +
+          "] ---\n\n" +
+          fuente.transcript;
       }
     }
 
@@ -991,11 +1037,19 @@ router.post("/:id/merge", async (req: Request, res: Response) => {
         });
         if (ejercicios.length > 0) {
           const ejIds = ejercicios.map((e) => e.id);
-          await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: ejIds } } });
-          await tx.exerciseReview.deleteMany({ where: { exerciseId: { in: ejIds } } });
-          await tx.exercise.deleteMany({ where: { generatedByClassId: fuente.id } });
+          await tx.exerciseTip.deleteMany({
+            where: { exerciseId: { in: ejIds } },
+          });
+          await tx.exerciseReview.deleteMany({
+            where: { exerciseId: { in: ejIds } },
+          });
+          await tx.exercise.deleteMany({
+            where: { generatedByClassId: fuente.id },
+          });
         }
-        await tx.topicDependency.deleteMany({ where: { generatedByClassId: fuente.id } });
+        await tx.topicDependency.deleteMany({
+          where: { generatedByClassId: fuente.id },
+        });
 
         // Limpiar TODOS los hijos FK directos del classLog fuente
         await tx.classImage.deleteMany({ where: { classId: fuente.id } });
@@ -1008,7 +1062,9 @@ router.post("/:id/merge", async (req: Request, res: Response) => {
     });
 
     // Actualizar la clase target con todo el contenido combinado
-    const newHash = createHash("sha256").update(transcripcionCombinada).digest("hex");
+    const newHash = createHash("sha256")
+      .update(transcripcionCombinada)
+      .digest("hex");
     await prisma.classLog.update({
       where: { id },
       data: {

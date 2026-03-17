@@ -147,6 +147,7 @@ function splitIntoChunks(text: string): string[] {
     }
 
     chunks.push(text.substring(start, end));
+    if (end >= text.length) break; // Last chunk reached — don't loop
     start = end - CHUNK_OVERLAP; // Overlap para continuidad
     if (start >= text.length) break;
   }

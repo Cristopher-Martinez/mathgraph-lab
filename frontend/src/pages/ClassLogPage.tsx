@@ -141,7 +141,10 @@ export default function ClassLogPage() {
         tipo: "exito",
         texto: `Fusionadas ${result.mergedCount} clase(s) en una sola. Re-análisis en segundo plano.`,
       });
-      if (claseSeleccionada && result.mergedIds?.includes(claseSeleccionada.id)) {
+      if (
+        claseSeleccionada &&
+        result.mergedIds?.includes(claseSeleccionada.id)
+      ) {
         setClaseSeleccionada(null);
       }
       await cargarClases();
@@ -157,7 +160,9 @@ export default function ClassLogPage() {
     if (!clase) return false;
     const fechaClase = new Date(clase.date).toISOString().split("T")[0];
     return clases.some(
-      (c) => c.id !== claseId && new Date(c.date).toISOString().split("T")[0] === fechaClase,
+      (c) =>
+        c.id !== claseId &&
+        new Date(c.date).toISOString().split("T")[0] === fechaClase,
     );
   }
 
@@ -251,7 +256,8 @@ export default function ClassLogPage() {
       if (result.merged) {
         textoExito = `Contenido fusionado con la clase existente del ${fecha}. Re-análisis en segundo plano.`;
       } else {
-        textoExito = "¡Clase registrada! El análisis y generación de ejercicios continúa en segundo plano.";
+        textoExito =
+          "¡Clase registrada! El análisis y generación de ejercicios continúa en segundo plano.";
       }
 
       if (result.advertencias && result.advertencias.length > 0) {
@@ -1015,7 +1021,12 @@ function DetalleClase({
   );
 
   const [detailTab, setDetailTab] = useState<
-    "resumen" | "formulas" | "ejercicios" | "actividades" | "transcripcion" | "imagenes"
+    | "resumen"
+    | "formulas"
+    | "ejercicios"
+    | "actividades"
+    | "transcripcion"
+    | "imagenes"
   >("resumen");
 
   // Build available tabs dynamically
@@ -1023,14 +1034,26 @@ function DetalleClase({
     { key: "resumen", label: "📋 Resumen" },
   ];
   if (clase.formulas?.length > 0)
-    tabs.push({ key: "formulas", label: `📐 Fórmulas (${clase.formulas.length})` });
-  tabs.push({ key: "ejercicios", label: `✏️ Ejercicios (${ejercicios.length})` });
+    tabs.push({
+      key: "formulas",
+      label: `📐 Fórmulas (${clase.formulas.length})`,
+    });
+  tabs.push({
+    key: "ejercicios",
+    label: `✏️ Ejercicios (${ejercicios.length})`,
+  });
   if (clase.actividades?.length > 0)
-    tabs.push({ key: "actividades", label: `📌 Actividades (${clase.actividades.length})` });
+    tabs.push({
+      key: "actividades",
+      label: `📌 Actividades (${clase.actividades.length})`,
+    });
   if (clase.transcript)
     tabs.push({ key: "transcripcion", label: "📝 Transcripción" });
   if (clase.imagenes?.length > 0)
-    tabs.push({ key: "imagenes", label: `🖼️ Imágenes (${clase.imagenes.length})` });
+    tabs.push({
+      key: "imagenes",
+      label: `🖼️ Imágenes (${clase.imagenes.length})`,
+    });
 
   return (
     <div className="space-y-4">
@@ -1073,7 +1096,9 @@ function DetalleClase({
             setReanalyzeMsg(null);
             try {
               await api.reanalyzeClassLog(clase.id);
-              setReanalyzeMsg("Re-análisis encolado. El proceso se ejecutará en segundo plano.");
+              setReanalyzeMsg(
+                "Re-análisis encolado. El proceso se ejecutará en segundo plano.",
+              );
             } catch {
               setReanalyzeMsg("Error al solicitar re-análisis.");
             } finally {
@@ -1082,18 +1107,23 @@ function DetalleClase({
           }}
           disabled={reanalyzing || isGenerating}
           className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title={isGenerating ? "Análisis en progreso..." : "Re-analizar con pipeline completo"}>
+          title={
+            isGenerating
+              ? "Análisis en progreso..."
+              : "Re-analizar con pipeline completo"
+          }>
           {reanalyzing || isGenerating ? "⏳ Procesando..." : "🔄 Re-analizar"}
         </button>
       </div>
 
       {/* Reanalyze feedback message */}
       {reanalyzeMsg && (
-        <div className={`px-4 py-2 rounded-lg text-sm ${
-          reanalyzeMsg.includes("Error")
-            ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
-            : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
-        }`}>
+        <div
+          className={`px-4 py-2 rounded-lg text-sm ${
+            reanalyzeMsg.includes("Error")
+              ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+              : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+          }`}>
           {reanalyzeMsg}
         </div>
       )}
@@ -1174,15 +1204,20 @@ function DetalleClase({
               <div className="flex items-center justify-between mb-3">
                 {/* Difficulty filter */}
                 <div className="flex gap-1.5">
-                  {([
-                    ["all", "Todos"],
-                    ["facil", "🟢 Fácil"],
-                    ["medio", "🟡 Medio"],
-                    ["dificil", "🔴 Difícil"],
-                  ] as const).map(([key, label]) => (
+                  {(
+                    [
+                      ["all", "Todos"],
+                      ["facil", "🟢 Fácil"],
+                      ["medio", "🟡 Medio"],
+                      ["dificil", "🔴 Difícil"],
+                    ] as const
+                  ).map(([key, label]) => (
                     <button
                       key={key}
-                      onClick={() => { setDiffFilter(key); setExPage(1); }}
+                      onClick={() => {
+                        setDiffFilter(key);
+                        setExPage(1);
+                      }}
                       className={`px-2.5 py-1 text-xs rounded-full font-medium transition-colors ${
                         diffFilter === key
                           ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400"
@@ -1214,9 +1249,11 @@ function DetalleClase({
                         <div className="flex items-center gap-2">
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              ej.dificultad === "facil" || ej.difficulty === "easy"
+                              ej.dificultad === "facil" ||
+                              ej.difficulty === "easy"
                                 ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400"
-                                : ej.dificultad === "medio" || ej.difficulty === "medium"
+                                : ej.dificultad === "medio" ||
+                                    ej.difficulty === "medium"
                                   ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400"
                                   : "bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400"
                             }`}>
@@ -1237,8 +1274,10 @@ function DetalleClase({
                                   latex: ej.pregunta || ej.question || ej.latex,
                                   question: ej.pregunta || ej.question,
                                   steps: ej.solucion || ej.steps,
-                                  difficulty: ej.dificultad || ej.difficulty || "medium",
-                                  topic: ej.topic || clase.temas?.[0] || "General",
+                                  difficulty:
+                                    ej.dificultad || ej.difficulty || "medium",
+                                  topic:
+                                    ej.topic || clase.temas?.[0] || "General",
                                   socratic: ej.socratic,
                                 },
                                 startSocratic: true,
@@ -1284,7 +1323,9 @@ function DetalleClase({
                     {exPage} / {totalExPages}
                   </span>
                   <button
-                    onClick={() => setExPage((p) => Math.min(totalExPages, p + 1))}
+                    onClick={() =>
+                      setExPage((p) => Math.min(totalExPages, p + 1))
+                    }
                     disabled={exPage >= totalExPages}
                     className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                     →
@@ -1315,7 +1356,12 @@ function DetalleClase({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-gray-400 dark:text-gray-500">
-                  {clase.transcript?.split(/\s+/).filter(Boolean).length.toLocaleString()} palabras · {clase.transcript?.length.toLocaleString()} caracteres
+                  {clase.transcript
+                    ?.split(/\s+/)
+                    .filter(Boolean)
+                    .length.toLocaleString()}{" "}
+                  palabras · {clase.transcript?.length.toLocaleString()}{" "}
+                  caracteres
                 </span>
               </div>
               <div className="max-h-[500px] overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed space-y-3">

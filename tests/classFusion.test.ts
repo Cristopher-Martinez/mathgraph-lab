@@ -13,134 +13,149 @@ let findFirstFilter: any = null;
 jest.mock("../backend/src/prismaClient", () => {
   const mockPrisma: any = {
     classLog: {
-        create: jest.fn().mockImplementation(({ data, include }: any) => {
-          const newClass = {
-            id: clases.length + 1,
-            ...data,
-            date: data.date,
-            images: data.images?.create || [],
-            createdAt: new Date(),
-          };
-          clases.push(newClass);
-          return Promise.resolve(newClass);
-        }),
-        findFirst: jest.fn().mockImplementation(({ where }: any) => {
-          findFirstFilter = where;
-          // Buscar por rango de fecha (fusión por día)
-          if (where?.date?.gte && where?.date?.lt) {
+      create: jest.fn().mockImplementation(({ data, include }: any) => {
+        const newClass = {
+          id: clases.length + 1,
+          ...data,
+          date: data.date,
+          images: data.images?.create || [],
+          createdAt: new Date(),
+        };
+        clases.push(newClass);
+        return Promise.resolve(newClass);
+      }),
+      findFirst: jest.fn().mockImplementation(({ where }: any) => {
+        findFirstFilter = where;
+        // Buscar por rango de fecha (fusión por día)
+        if (where?.date?.gte && where?.date?.lt) {
+          const gte = new Date(where.date.gte).getTime();
+          const lt = new Date(where.date.lt).getTime();
+          const found = clases.find((c) => {
+            const d = new Date(c.date).getTime();
+            return d >= gte && d < lt;
+          });
+          return Promise.resolve(
+            found
+              ? {
+                  ...found,
+                  images: imagenes.filter((i) => i.classId === found.id),
+                }
+              : null,
+          );
+        }
+        // Buscar por hash (dedup)
+        if (where?.transcriptHash) {
+          const found = clases.find(
+            (c) => c.transcriptHash === where.transcriptHash,
+          );
+          return Promise.resolve(found || null);
+        }
+        return Promise.resolve(null);
+      }),
+      findUnique: jest.fn().mockImplementation(({ where }: any) => {
+        const c = clases.find((c) => c.id === where.id);
+        return Promise.resolve(
+          c
+            ? { ...c, images: imagenes.filter((i) => i.classId === c.id) }
+            : null,
+        );
+      }),
+      findMany: jest.fn().mockImplementation(({ where, orderBy }: any = {}) => {
+        let results = [...clases];
+        if (where) {
+          if (where.id?.not !== undefined) {
+            results = results.filter((c) => c.id !== where.id.not);
+          }
+          if (where.date?.gte && where.date?.lt) {
             const gte = new Date(where.date.gte).getTime();
             const lt = new Date(where.date.lt).getTime();
-            const found = clases.find((c) => {
+            results = results.filter((c) => {
               const d = new Date(c.date).getTime();
               return d >= gte && d < lt;
             });
-            return Promise.resolve(
-              found ? { ...found, images: imagenes.filter((i) => i.classId === found.id) } : null,
-            );
           }
-          // Buscar por hash (dedup)
-          if (where?.transcriptHash) {
-            const found = clases.find((c) => c.transcriptHash === where.transcriptHash);
-            return Promise.resolve(found || null);
-          }
-          return Promise.resolve(null);
-        }),
-        findUnique: jest.fn().mockImplementation(({ where }: any) => {
-          const c = clases.find((c) => c.id === where.id);
-          return Promise.resolve(c ? { ...c, images: imagenes.filter((i) => i.classId === c.id) } : null);
-        }),
-        findMany: jest.fn().mockImplementation(({ where, orderBy }: any = {}) => {
-          let results = [...clases];
-          if (where) {
-            if (where.id?.not !== undefined) {
-              results = results.filter((c) => c.id !== where.id.not);
-            }
-            if (where.date?.gte && where.date?.lt) {
-              const gte = new Date(where.date.gte).getTime();
-              const lt = new Date(where.date.lt).getTime();
-              results = results.filter((c) => {
-                const d = new Date(c.date).getTime();
-                return d >= gte && d < lt;
-              });
-            }
-          }
-          return Promise.resolve(results.map((c) => ({
+        }
+        return Promise.resolve(
+          results.map((c) => ({
             ...c,
             images: imagenes.filter((i) => i.classId === c.id),
-          })));
-        }),
-        delete: jest.fn().mockImplementation(({ where }: any) => {
-          const idx = clases.findIndex((c) => c.id === where.id);
-          if (idx >= 0) {
-            const [removed] = clases.splice(idx, 1);
-            return Promise.resolve(removed);
-          }
-          return Promise.resolve(null);
-        }),
-        update: jest.fn().mockImplementation(({ where, data }: any) => {
-          const c = clases.find((c) => c.id === where.id);
-          if (c) Object.assign(c, data);
-          return Promise.resolve(c);
-        }),
-      },
-      classImage: {
-        create: jest.fn().mockImplementation(({ data }: any) => {
-          const img = { id: imagenes.length + 1, ...data };
-          imagenes.push(img);
-          return Promise.resolve(img);
-        }),
-        createMany: jest.fn().mockImplementation(({ data }: any) => {
-          for (const d of data) {
-            imagenes.push({ id: imagenes.length + 1, ...d });
-          }
-          return Promise.resolve({ count: data.length });
-        }),
-        deleteMany: jest.fn().mockImplementation(({ where }: any) => {
-          const before = imagenes.length;
-          const remaining = imagenes.filter((i) => i.classId !== where.classId);
-          imagenes.length = 0;
-          imagenes.push(...remaining);
-          return Promise.resolve({ count: before - remaining.length });
-        }),
-      },
-      classChunk: {
-        deleteMany: jest.fn().mockImplementation(({ where }: any) => {
-          const before = chunks.length;
-          const remaining = chunks.filter((c) => c.classId !== where.classId);
-          chunks.length = 0;
-          chunks.push(...remaining);
-          return Promise.resolve({ count: before - remaining.length });
-        }),
-      },
-      classNote: {
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      topic: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([]),
-      },
-      topicDependency: {
-        findFirst: jest.fn().mockResolvedValue(null),
-        findMany: jest.fn().mockResolvedValue([]),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      exercise: {
-        findMany: jest.fn().mockResolvedValue([]),
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      exerciseTip: {
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-      exerciseReview: {
-        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
-      },
-    };
+          })),
+        );
+      }),
+      delete: jest.fn().mockImplementation(({ where }: any) => {
+        const idx = clases.findIndex((c) => c.id === where.id);
+        if (idx >= 0) {
+          const [removed] = clases.splice(idx, 1);
+          return Promise.resolve(removed);
+        }
+        return Promise.resolve(null);
+      }),
+      update: jest.fn().mockImplementation(({ where, data }: any) => {
+        const c = clases.find((c) => c.id === where.id);
+        if (c) Object.assign(c, data);
+        return Promise.resolve(c);
+      }),
+    },
+    classImage: {
+      create: jest.fn().mockImplementation(({ data }: any) => {
+        const img = { id: imagenes.length + 1, ...data };
+        imagenes.push(img);
+        return Promise.resolve(img);
+      }),
+      createMany: jest.fn().mockImplementation(({ data }: any) => {
+        for (const d of data) {
+          imagenes.push({ id: imagenes.length + 1, ...d });
+        }
+        return Promise.resolve({ count: data.length });
+      }),
+      deleteMany: jest.fn().mockImplementation(({ where }: any) => {
+        const before = imagenes.length;
+        const remaining = imagenes.filter((i) => i.classId !== where.classId);
+        imagenes.length = 0;
+        imagenes.push(...remaining);
+        return Promise.resolve({ count: before - remaining.length });
+      }),
+    },
+    classChunk: {
+      deleteMany: jest.fn().mockImplementation(({ where }: any) => {
+        const before = chunks.length;
+        const remaining = chunks.filter((c) => c.classId !== where.classId);
+        chunks.length = 0;
+        chunks.push(...remaining);
+        return Promise.resolve({ count: before - remaining.length });
+      }),
+    },
+    classNote: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    topic: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    topicDependency: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    exercise: {
+      findMany: jest.fn().mockResolvedValue([]),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    exerciseTip: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    exerciseReview: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+  };
 
-    // $transaction ejecuta el callback pasándole el mismo mock como tx
-    mockPrisma.$transaction = jest.fn().mockImplementation(async (cb: any) => cb(mockPrisma));
+  // $transaction ejecuta el callback pasándole el mismo mock como tx
+  mockPrisma.$transaction = jest
+    .fn()
+    .mockImplementation(async (cb: any) => cb(mockPrisma));
 
-    return { __esModule: true, default: mockPrisma };
-  });
+  return { __esModule: true, default: mockPrisma };
+});
 
 // Mock imageAnalysis — simula procesamiento de imágenes
 jest.mock("../backend/src/services/imageAnalysis", () => ({
@@ -194,7 +209,9 @@ jest.mock("../backend/src/services/websocket", () => ({
 jest.mock("../backend/src/services/autoPropagation", () => ({
   propagateClassChanges: jest.fn().mockResolvedValue(undefined),
   cleanArtifactsForReanalysis: jest.fn().mockResolvedValue(undefined),
-  extendDAG: jest.fn().mockResolvedValue({ newTopics: [], newDependencies: 0, newExercises: 0 }),
+  extendDAG: jest
+    .fn()
+    .mockResolvedValue({ newTopics: [], newDependencies: 0, newExercises: 0 }),
   auditDAG: jest.fn().mockResolvedValue(undefined),
   rollbackClass: jest.fn().mockResolvedValue(undefined),
 }));
@@ -444,7 +461,7 @@ describe("Procesamiento de imágenes en POST", () => {
       transcript: "Clase con imágenes.",
       images: [
         { base64: "dGVzdA==", mimeType: "image/jpeg" }, // válida
-        { base64: "", mimeType: "image/jpeg" },          // inválida: vacía
+        { base64: "", mimeType: "image/jpeg" }, // inválida: vacía
       ],
     });
 
@@ -456,7 +473,9 @@ describe("Procesamiento de imágenes en POST", () => {
   });
 
   it("debe fusionar imágenes con clase existente del mismo día", async () => {
-    const { procesarImagenesBatch } = require("../backend/src/services/imageAnalysis");
+    const {
+      procesarImagenesBatch,
+    } = require("../backend/src/services/imageAnalysis");
     const app = createTestApp();
 
     // Clase sin imágenes
@@ -541,7 +560,9 @@ describe("Fusión + dedup coexistencia", () => {
 
 describe("Limpieza de artifacts en fusión", () => {
   it("debe llamar a cleanArtifactsForReanalysis al fusionar", async () => {
-    const { cleanArtifactsForReanalysis } = require("../backend/src/services/autoPropagation");
+    const {
+      cleanArtifactsForReanalysis,
+    } = require("../backend/src/services/autoPropagation");
     const app = createTestApp();
 
     await injectRequest(app, "POST", "/class-log", {
@@ -618,7 +639,11 @@ describe("Fusión manual (POST /class-log/:id/merge)", () => {
     clases[1].date = new Date("2026-07-01T12:00:00");
 
     // Fusionar la clase 1 con las del mismo día
-    const res = await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
+    const res = await injectRequest(
+      app,
+      "POST",
+      `/class-log/${clases[0].id}/merge`,
+    );
 
     expect(res.status).toBe(200);
     const data = res.json();
@@ -635,7 +660,11 @@ describe("Fusión manual (POST /class-log/:id/merge)", () => {
       transcript: "Clase sola.",
     });
 
-    const res = await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
+    const res = await injectRequest(
+      app,
+      "POST",
+      `/class-log/${clases[0].id}/merge`,
+    );
 
     expect(res.status).toBe(400);
     const data = res.json();
@@ -643,7 +672,9 @@ describe("Fusión manual (POST /class-log/:id/merge)", () => {
   });
 
   it("debe limpiar artifacts del target y eliminar fuentes con sus hijos FK", async () => {
-    const { cleanArtifactsForReanalysis } = require("../backend/src/services/autoPropagation");
+    const {
+      cleanArtifactsForReanalysis,
+    } = require("../backend/src/services/autoPropagation");
     const prisma = require("../backend/src/prismaClient").default;
     const app = createTestApp();
 

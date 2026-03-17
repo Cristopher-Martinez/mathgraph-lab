@@ -8,7 +8,7 @@ import {
   startGeneration,
   updateStep,
 } from "./generationStatus";
-import { getRedis, getGenerationStatus } from "./redisClient";
+import { getGenerationStatus, getRedis } from "./redisClient";
 
 const PROPAGATION_LOCK_TTL = 600; // 10 minutes max lock
 
@@ -25,8 +25,12 @@ async function isCancelled(classId: number): Promise<boolean> {
  * Usado en fusión y re-análisis para evitar duplicados.
  * NO borra la clase ni sus imágenes/chunks — solo los artifacts derivados del análisis.
  */
-export async function cleanArtifactsForReanalysis(classId: number): Promise<void> {
-  console.log(`[CleanArtifacts] Limpiando artifacts previos de clase ${classId}`);
+export async function cleanArtifactsForReanalysis(
+  classId: number,
+): Promise<void> {
+  console.log(
+    `[CleanArtifacts] Limpiando artifacts previos de clase ${classId}`,
+  );
 
   await prisma.$transaction(async (tx) => {
     // 1. Eliminar tips y reviews de ejercicios generados por esta clase
@@ -119,12 +123,13 @@ export async function cleanArtifactsForReanalysis(classId: number): Promise<void
  * Phase 3: Pro truth (quality, ~$0.10)
  * Called from jobQueue for async POST /class-log.
  */
-export async function analyzeAndPropagate(
-  classId: number,
-): Promise<void> {
-  console.log(`[AnalyzeAndPropagate] Starting 3-phase pipeline for class ${classId}`);
+export async function analyzeAndPropagate(classId: number): Promise<void> {
+  console.log(
+    `[AnalyzeAndPropagate] Starting 3-phase pipeline for class ${classId}`,
+  );
 
-  const { analizarTranscripcionFlash, analizarTranscripcionPro } = await import("./transcriptAnalysis");
+  const { analizarTranscripcionFlash, analizarTranscripcionPro } =
+    await import("./transcriptAnalysis");
   const { indexClassTranscript } = await import("./ragService");
   const { broadcastGenerationUpdate } = await import("./websocket");
 
@@ -170,7 +175,9 @@ export async function analyzeAndPropagate(
         where: { id: classId },
         data: { vectorized: true, vectorizedAt: new Date() },
       });
-      console.log(`[AnalyzeAndPropagate] Fase 1 completada: vectorización para clase ${classId}`);
+      console.log(
+        `[AnalyzeAndPropagate] Fase 1 completada: vectorización para clase ${classId}`,
+      );
     } catch (err) {
       // Vectorization failure is non-blocking
       console.error(`[AnalyzeAndPropagate] Fase 1 error (no bloquea):`, err);
@@ -207,7 +214,9 @@ export async function analyzeAndPropagate(
       },
     });
 
-    console.log(`[AnalyzeAndPropagate] Fase 2 completada: preview Flash para clase ${classId}`);
+    console.log(
+      `[AnalyzeAndPropagate] Fase 2 completada: preview Flash para clase ${classId}`,
+    );
 
     // Broadcast preview ready
     broadcastGenerationUpdate({
@@ -242,14 +251,21 @@ export async function analyzeAndPropagate(
       },
     });
 
-    console.log(`[AnalyzeAndPropagate] Fase 3 completada: verdad Pro para clase ${classId}`);
+    console.log(
+      `[AnalyzeAndPropagate] Fase 3 completada: verdad Pro para clase ${classId}`,
+    );
 
     // Re-indexar con summary real para mejorar calidad de búsqueda RAG
     try {
       await indexClassTranscript(classId, textoTranscripcion, truth.resumen);
-      console.log(`[AnalyzeAndPropagate] Re-indexación RAG con summary Pro completada`);
+      console.log(
+        `[AnalyzeAndPropagate] Re-indexación RAG con summary Pro completada`,
+      );
     } catch (err) {
-      console.error(`[AnalyzeAndPropagate] Re-indexación RAG falló (no bloquea):`, err);
+      console.error(
+        `[AnalyzeAndPropagate] Re-indexación RAG falló (no bloquea):`,
+        err,
+      );
     }
 
     // ═══════════════════════════════════════════════
@@ -338,22 +354,35 @@ async function findExistingTopic(
  * - En su lugar, genera ejercicios de REFUERZO para ese tema existente.
  * - Los ejercicios de refuerzo se marcan con generatedByClassId de la nueva clase.
  */
-export async function propagateClassChanges(classId: number, analysisCompleted: boolean = false) {
+export async function propagateClassChanges(
+  classId: number,
+  analysisCompleted: boolean = false,
+) {
   console.log(`[AutoPropagation] Iniciando propagación para clase ${classId}`);
 
   // Guard 1: Check if already completed
   const existingStatus = await getGenerationStatus(classId, "class");
   if (existingStatus?.status === "done") {
-    console.log(`[AutoPropagation] Clase ${classId} ya fue propagada, omitiendo`);
+    console.log(
+      `[AutoPropagation] Clase ${classId} ya fue propagada, omitiendo`,
+    );
     return;
   }
 
   // Guard 2: Redis lock to prevent concurrent execution
   const lockKey = `propagation:lock:${classId}`;
   const redis = getRedis();
-  const locked = await redis.set(lockKey, "1", "EX", PROPAGATION_LOCK_TTL, "NX");
+  const locked = await redis.set(
+    lockKey,
+    "1",
+    "EX",
+    PROPAGATION_LOCK_TTL,
+    "NX",
+  );
   if (!locked) {
-    console.log(`[AutoPropagation] Clase ${classId} ya está siendo propagada (lock activo)`);
+    console.log(
+      `[AutoPropagation] Clase ${classId} ya está siendo propagada (lock activo)`,
+    );
     return;
   }
 
@@ -364,10 +393,15 @@ export async function propagateClassChanges(classId: number, analysisCompleted: 
   }
 }
 
-async function _doPropagation(classId: number, analysisCompleted: boolean = false) {
+async function _doPropagation(
+  classId: number,
+  analysisCompleted: boolean = false,
+) {
   // Cancel check
   if (await isCancelled(classId)) {
-    console.log(`[AutoPropagation] Propagación cancelada para clase ${classId}`);
+    console.log(
+      `[AutoPropagation] Propagación cancelada para clase ${classId}`,
+    );
     return;
   }
 
@@ -560,8 +594,13 @@ async function _doPropagation(classId: number, analysisCompleted: boolean = fals
       );
 
       const uniqueExercises = ejerciciosValidos.filter((ej) => {
-        const normalized = ej.pregunta.trim().toLowerCase().replace(/\s+/g, " ");
-        return !existingTexts.some((existing) => similarity(normalized, existing) > 0.8);
+        const normalized = ej.pregunta
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+        return !existingTexts.some(
+          (existing) => similarity(normalized, existing) > 0.8,
+        );
       });
 
       if (uniqueExercises.length < ejerciciosValidos.length) {
@@ -742,7 +781,9 @@ Reglas:
     await updateStep(classId, "Reconstruyendo DAG", "done");
     await updateStep(classId, "Auditando DAG", "done");
   } else {
-    console.log(`[AutoPropagation] Sin temas nuevos — DAG no necesita reconstrucción`);
+    console.log(
+      `[AutoPropagation] Sin temas nuevos — DAG no necesita reconstrucción`,
+    );
     await updateStep(classId, "Reconstruyendo DAG", "done", "sin cambios");
     await updateStep(classId, "Auditando DAG", "done", "sin cambios");
   }
