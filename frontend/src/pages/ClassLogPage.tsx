@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MarkdownLatex from "../components/MarkdownLatex";
+import { useGeneration } from "../context/GenerationContext";
 import { api } from "../services/api";
 
 interface ClassLogEntry {
@@ -941,6 +942,11 @@ function DetalleClase({
   const [exPage, setExPage] = useState(1);
   const [diffFilter, setDiffFilter] = useState<string>("all");
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [reanalyzeMsg, setReanalyzeMsg] = useState<string | null>(null);
+  const { activeGenerations } = useGeneration();
+  const isGenerating = activeGenerations.some(
+    (g) => g.classId === clase.id && g.status === "running",
+  );
 
   const ejercicios = clase.ejercicios || [];
   const filteredExercicios =
@@ -1017,18 +1023,33 @@ function DetalleClase({
         <button
           onClick={async () => {
             setReanalyzing(true);
+            setReanalyzeMsg(null);
             try {
               await api.reanalyzeClassLog(clase.id);
+              setReanalyzeMsg("Re-análisis encolado. El proceso se ejecutará en segundo plano.");
+            } catch {
+              setReanalyzeMsg("Error al solicitar re-análisis.");
             } finally {
               setReanalyzing(false);
             }
           }}
-          disabled={reanalyzing}
-          className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-          title="Re-analizar con pipeline completo">
-          {reanalyzing ? "⏳" : "🔄"} Re-analizar
+          disabled={reanalyzing || isGenerating}
+          className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title={isGenerating ? "Análisis en progreso..." : "Re-analizar con pipeline completo"}>
+          {reanalyzing || isGenerating ? "⏳ Procesando..." : "🔄 Re-analizar"}
         </button>
       </div>
+
+      {/* Reanalyze feedback message */}
+      {reanalyzeMsg && (
+        <div className={`px-4 py-2 rounded-lg text-sm ${
+          reanalyzeMsg.includes("Error")
+            ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+            : "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+        }`}>
+          {reanalyzeMsg}
+        </div>
+      )}
 
       {/* Tab card */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
