@@ -21,6 +21,97 @@ async function isCancelled(classId: number): Promise<boolean> {
 }
 
 /**
+ * Limpia artifacts generados por análisis previo de una clase.
+ * Usado en fusión y re-análisis para evitar duplicados.
+ * NO borra la clase ni sus imágenes/chunks — solo los artifacts derivados del análisis.
+ */
+export async function cleanArtifactsForReanalysis(classId: number): Promise<void> {
+  console.log(`[CleanArtifacts] Limpiando artifacts previos de clase ${classId}`);
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Eliminar tips y reviews de ejercicios generados por esta clase
+    const exercisesOfClass = await tx.exercise.findMany({
+      where: { generatedByClassId: classId },
+      select: { id: true },
+    });
+    const exerciseIds = exercisesOfClass.map((e) => e.id);
+    if (exerciseIds.length > 0) {
+      await tx.exerciseTip.deleteMany({
+        where: { exerciseId: { in: exerciseIds } },
+      });
+      await tx.exerciseReview.deleteMany({
+        where: { exerciseId: { in: exerciseIds } },
+      });
+    }
+    const deletedExercises = await tx.exercise.deleteMany({
+      where: { generatedByClassId: classId },
+    });
+
+    // 2. Eliminar dependencias generadas por esta clase
+    const deletedDeps = await tx.topicDependency.deleteMany({
+      where: { generatedByClassId: classId },
+    });
+
+    // 3. Eliminar apuntes generados para esta clase
+    const deletedNotes = await tx.classNote.deleteMany({
+      where: { classId },
+    });
+
+    // 4. Limpiar topics huérfanos creados exclusivamente por esta clase
+    const topicsCreated = await tx.topic.findMany({
+      where: { createdByClassId: classId },
+    });
+
+    const otrasClases = await tx.classLog.findMany({
+      where: { id: { not: classId } },
+      select: { topics: true },
+    });
+    const temasOtrasClases = new Set<string>();
+    for (const otra of otrasClases) {
+      const temas = otra.topics ? JSON.parse(otra.topics) : [];
+      if (Array.isArray(temas)) {
+        temas.forEach((t: string) =>
+          temasOtrasClases.add(t.trim().toLowerCase().replace(/\s+/g, " ")),
+        );
+      }
+    }
+
+    let topicsEliminados = 0;
+    for (const topic of topicsCreated) {
+      if (temasOtrasClases.has(topic.name)) {
+        await tx.topic.update({
+          where: { id: topic.id },
+          data: { createdByClassId: null },
+        });
+      } else {
+        const ejerciciosManuales = await tx.exercise.count({
+          where: { topicId: topic.id, generatedByClassId: null },
+        });
+        if (ejerciciosManuales > 0) {
+          await tx.topic.update({
+            where: { id: topic.id },
+            data: { createdByClassId: null },
+          });
+        } else {
+          await tx.topicDoc.deleteMany({ where: { topicId: topic.id } });
+          await tx.formula.deleteMany({ where: { topicId: topic.id } });
+          await tx.progress.deleteMany({ where: { topicId: topic.id } });
+          await tx.topicDependency.deleteMany({
+            where: { OR: [{ parentId: topic.id }, { childId: topic.id }] },
+          });
+          await tx.topic.delete({ where: { id: topic.id } });
+          topicsEliminados++;
+        }
+      }
+    }
+
+    console.log(
+      `[CleanArtifacts] Clase ${classId}: ${deletedExercises.count} ejercicios, ${deletedDeps.count} deps, ${deletedNotes.count} notas, ${topicsEliminados} topics eliminados`,
+    );
+  });
+}
+
+/**
  * Full background pipeline: 3-phase analysis + propagation.
  * Phase 1: Vectorize transcript (embeddings, $0.00)
  * Phase 2: Flash preview (fast, ~$0.005)

@@ -4,6 +4,7 @@ import { Request, Response, Router } from "express";
 import prisma from "../prismaClient";
 import {
   auditDAG,
+  cleanArtifactsForReanalysis,
   extendDAG,
   rollbackClass,
 } from "../services/autoPropagation";
@@ -170,6 +171,10 @@ router.post("/", async (req: Request, res: Response) => {
       // ─── FUSIÓN: misma fecha = misma clase ───
       console.log(`[ClassLog] Fusionando con clase existente #${claseExistente.id} (fecha: ${date})`);
 
+      // Limpiar artifacts del análisis previo (ejercicios, topics, notas, dependencias)
+      // para evitar duplicados cuando el pipeline re-analice el contenido combinado
+      await cleanArtifactsForReanalysis(claseExistente.id);
+
       // Combinar transcripción existente + nuevo contenido
       const transcripcionMerged = claseExistente.transcript
         ? claseExistente.transcript + "\n\n--- [Contenido adicional] ---\n\n" + textoCompleto
@@ -191,14 +196,19 @@ router.post("/", async (req: Request, res: Response) => {
         where: { classId: claseExistente.id },
       });
 
-      // Actualizar transcripción y reset de flags de análisis
+      // Actualizar transcripción, título y reset de flags de análisis
+      // Título: se mantiene el más reciente (el de la nueva subida si se envía)
       const newHash = createHash("sha256").update(transcripcionMerged).digest("hex");
       await prisma.classLog.update({
         where: { id: claseExistente.id },
         data: {
           transcript: transcripcionMerged,
           transcriptHash: newHash,
+          title: title || claseExistente.title || null,
           summary: "Procesando (fusión)...",
+          topics: "[]",
+          formulas: "[]",
+          activities: "[]",
           vectorized: false,
           analyzed: false,
           deepAnalyzed: false,
@@ -874,6 +884,12 @@ router.post("/:id/reanalyze", async (req: Request, res: Response) => {
         analysisModel: null,
       },
     });
+
+    // Limpiar artifacts del análisis previo para evitar duplicados
+    await cleanArtifactsForReanalysis(id);
+
+    // Limpiar chunks para re-vectorización limpia
+    await prisma.classChunk.deleteMany({ where: { classId: id } });
 
     // Clear stale Redis state so pipeline guards don't block
     await deleteGenerationStatus(id, "class");

@@ -151,6 +151,7 @@ jest.mock("../backend/src/services/websocket", () => ({
 // Mock autoPropagation
 jest.mock("../backend/src/services/autoPropagation", () => ({
   propagateClassChanges: jest.fn().mockResolvedValue(undefined),
+  cleanArtifactsForReanalysis: jest.fn().mockResolvedValue(undefined),
   extendDAG: jest.fn().mockResolvedValue({ newTopics: [], newDependencies: 0, newExercises: 0 }),
   auditDAG: jest.fn().mockResolvedValue(undefined),
   rollbackClass: jest.fn().mockResolvedValue(undefined),
@@ -493,5 +494,66 @@ describe("Fusión + dedup coexistencia", () => {
 
     expect(hashNuevo).toBeDefined();
     expect(hashNuevo).not.toBe(hashOriginal);
+  });
+});
+
+describe("Limpieza de artifacts en fusión", () => {
+  it("debe llamar a cleanArtifactsForReanalysis al fusionar", async () => {
+    const { cleanArtifactsForReanalysis } = require("../backend/src/services/autoPropagation");
+    const app = createTestApp();
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-01",
+      transcript: "Primera sesión.",
+    });
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-01",
+      transcript: "Segunda sesión.",
+    });
+
+    expect(cleanArtifactsForReanalysis).toHaveBeenCalledWith(clases[0].id);
+  });
+
+  it("debe mantener el título más reciente al fusionar", async () => {
+    const app = createTestApp();
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-02",
+      title: "Clase mañana",
+      transcript: "Contenido mañana.",
+    });
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-02",
+      title: "Clase tarde actualizada",
+      transcript: "Contenido tarde.",
+    });
+
+    expect(clases[0].title).toBe("Clase tarde actualizada");
+  });
+
+  it("debe resetear topics/formulas/activities al fusionar", async () => {
+    const app = createTestApp();
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-03",
+      transcript: "Primera parte.",
+    });
+
+    // Simular que el análisis llenó estos campos
+    clases[0].topics = JSON.stringify(["Álgebra", "Geometría"]);
+    clases[0].formulas = JSON.stringify(["a^2+b^2=c^2"]);
+    clases[0].activities = JSON.stringify(["Ejercicios 1-5"]);
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-06-03",
+      transcript: "Segunda parte.",
+    });
+
+    // Después de fusión, deben estar vacíos (se re-analizará todo)
+    expect(clases[0].topics).toBe("[]");
+    expect(clases[0].formulas).toBe("[]");
+    expect(clases[0].activities).toBe("[]");
   });
 });
