@@ -17,6 +17,7 @@ import {
   validarImagen,
 } from "../services/imageAnalysis";
 import { enqueueFullAnalysis, cancelGeneration } from "../services/jobQueue";
+import { deleteGenerationStatus } from "../services/redisClient";
 import { parseGeminiJSON } from "../utils/parseGeminiJSON";
 
 const router = Router();
@@ -710,8 +711,15 @@ router.post("/:id/reanalyze", async (req: Request, res: Response) => {
       },
     });
 
-    // Enqueue new analysis
-    enqueueFullAnalysis(id);
+    // Clear stale Redis state so pipeline guards don't block
+    await deleteGenerationStatus(id, "class");
+    const { getRedis } = await import("../services/redisClient");
+    const redis = getRedis();
+    await redis.del(`generation:cancel:${id}`);
+    await redis.del(`propagation:lock:${id}`);
+
+    // Enqueue new analysis (force=true removes old completed BullMQ job)
+    await enqueueFullAnalysis(id, undefined, undefined, true);
 
     res.json({ status: "reanalysis_queued", classId: id });
   } catch (error: any) {

@@ -117,26 +117,57 @@ export async function enqueuePropagation(classId: number): Promise<void> {
 
 /**
  * Enqueue full analysis + propagation (transcript analysis in background).
+ * @param force If true, removes previous completed job to allow re-analysis.
  */
 export async function enqueueFullAnalysis(
   classId: number,
   _transcript?: string,
   _images?: any[],
+  force: boolean = false,
 ): Promise<void> {
   if (queue && ready) {
+    const jobId = `analyze-${classId}`;
+
+    // For re-analysis: remove old completed/failed job so BullMQ accepts the new one
+    if (force) {
+      const existingJob = await queue.getJob(jobId);
+      if (existingJob) {
+        const state = await existingJob.getState();
+        if (state === "completed" || state === "failed") {
+          await existingJob.remove();
+          console.log(`[JobQueue] Removed old ${state} job ${jobId} for re-analysis`);
+        }
+      }
+    }
+
     // Only pass classId — worker reads transcript from DB to avoid bloating Redis
     await queue.add("analyze-and-propagate", { classId }, {
-      jobId: `analyze-${classId}`,
+      jobId,
     });
     console.log(`[JobQueue] Enqueued full analysis for class ${classId}`);
   } else {
-    // Fallback: direct fire-and-forget
+    // Fallback: direct fire-and-forget with Redis lock to prevent concurrent runs
+    const lockKey = `analysis:lock:${classId}`;
+    const redis = getRedis();
+    const acquired = force
+      ? await redis.set(lockKey, "1", "EX", 600).then(() => true)
+      : await redis.set(lockKey, "1", "EX", 600, "NX").then((r) => !!r);
+
+    if (!acquired) {
+      console.log(`[JobQueue] Fallback: analysis already running for class ${classId}, skipping`);
+      return;
+    }
+
     console.log(`[JobQueue] Fallback: direct full analysis for class ${classId}`);
     import("./autoPropagation").then(({ analyzeAndPropagate }) => {
-      analyzeAndPropagate(classId).catch((err) => {
-        console.error("[JobQueue] Fallback analysis error:", err);
-        failGeneration(classId, err.message || "Error en análisis");
-      });
+      analyzeAndPropagate(classId)
+        .catch((err) => {
+          console.error("[JobQueue] Fallback analysis error:", err);
+          failGeneration(classId, err.message || "Error en análisis");
+        })
+        .finally(() => {
+          redis.del(lockKey).catch(() => {});
+        });
     });
   }
 }
