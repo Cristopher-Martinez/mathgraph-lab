@@ -74,7 +74,7 @@ export async function sanitizeTranscriptAI(
     },
   });
 
-  const SANITIZE_PROMPT = `Eres un editor académico. Tu tarea es limpiar y reestructurar una transcripción de voz-a-texto de una clase de matemáticas.
+  const SANITIZE_PROMPT_TEMPLATE = `Eres un editor académico. Tu tarea es limpiar y reestructurar una transcripción de voz-a-texto de una clase de matemáticas.
 
 REGLAS:
 - PRESERVA todo el contenido académico: definiciones, fórmulas, ejemplos, explicaciones
@@ -86,15 +86,55 @@ REGLAS:
 ${summary ? `\nContexto: ${summary}` : ""}
 
 Transcripción a limpiar:
-${cleaned.slice(0, 30000)}`;
+`;
 
   try {
     const cKey = cacheKey("sanitize", cleaned.slice(0, 200) + cleaned.length);
     const cached = await getCached<string>(cKey);
     if (cached) return cached;
 
-    const result = await model.generateContent(SANITIZE_PROMPT);
-    const sanitized = result.response.text().trim();
+    // Para transcripciones largas, chunking de sanitización
+    const SANITIZE_CHUNK_SIZE = 28_000;
+    let sanitized: string;
+
+    if (cleaned.length <= SANITIZE_CHUNK_SIZE) {
+      const result = await model.generateContent(SANITIZE_PROMPT_TEMPLATE + cleaned);
+      sanitized = result.response.text().trim();
+    } else {
+      // Dividir en chunks, sanitizar cada uno, unir
+      const chunks: string[] = [];
+      let start = 0;
+      while (start < cleaned.length) {
+        let end = Math.min(start + SANITIZE_CHUNK_SIZE, cleaned.length);
+        // Buscar un punto de corte natural
+        if (end < cleaned.length) {
+          const searchArea = cleaned.substring(end - 500, end);
+          const lastBreak = Math.max(
+            searchArea.lastIndexOf("\n\n"),
+            searchArea.lastIndexOf(". "),
+          );
+          if (lastBreak > 0) end = end - 500 + lastBreak + 1;
+        }
+        chunks.push(cleaned.substring(start, end));
+        start = end;
+      }
+
+      console.log(
+        `[RAG] Sanitización AI de ${cleaned.length} chars en ${chunks.length} chunks`,
+      );
+
+      const sanitizedChunks: string[] = [];
+      for (const chunk of chunks) {
+        try {
+          const result = await model.generateContent(SANITIZE_PROMPT_TEMPLATE + chunk);
+          const text = result.response.text().trim();
+          sanitizedChunks.push(text.length > 50 ? text : chunk);
+        } catch {
+          sanitizedChunks.push(chunk); // Fallback to regex-cleaned chunk
+        }
+      }
+      sanitized = sanitizedChunks.join("\n\n");
+    }
 
     if (sanitized.length > 100) {
       await setCached(cKey, sanitized, TTL.TRANSCRIPT);
