@@ -115,7 +115,6 @@ export default function ClassLogPage() {
         tipo: "exito",
         texto: "Clase eliminada junto con sus temas y ejercicios relacionados",
       });
-      // Limpiar selección si la clase eliminada estaba siendo vista
       if (claseSeleccionada && claseSeleccionada.id === id) {
         setClaseSeleccionada(null);
       }
@@ -124,6 +123,42 @@ export default function ClassLogPage() {
       console.error("Error al eliminar clase:", err);
       setMensaje({ tipo: "error", texto: "Error al eliminar la clase" });
     }
+  }
+
+  async function fusionarClase(id: number, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    if (
+      !confirm(
+        "¿Fusionar esta clase con las demás del mismo día?\n\nLas transcripciones se combinarán y se re-analizará todo el contenido como una sola clase.\n\nLas clases duplicadas serán eliminadas.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const result = await api.mergeClassLog(id);
+      setMensaje({
+        tipo: "exito",
+        texto: `Fusionadas ${result.mergedCount} clase(s) en una sola. Re-análisis en segundo plano.`,
+      });
+      if (claseSeleccionada && result.mergedIds?.includes(claseSeleccionada.id)) {
+        setClaseSeleccionada(null);
+      }
+      await cargarClases();
+    } catch (err: any) {
+      console.error("Error al fusionar clase:", err);
+      setMensaje({ tipo: "error", texto: err.message || "Error al fusionar" });
+    }
+  }
+
+  /** Detecta si hay clases duplicadas para el mismo día */
+  function tieneDuplicadosMismoDia(claseId: number): boolean {
+    const clase = clases.find((c) => c.id === claseId);
+    if (!clase) return false;
+    const fechaClase = new Date(clase.date).toISOString().split("T")[0];
+    return clases.some(
+      (c) => c.id !== claseId && new Date(c.date).toISOString().split("T")[0] === fechaClase,
+    );
   }
 
   function abrirEdicion(clase: any, e: React.MouseEvent) {
@@ -604,6 +639,13 @@ export default function ClassLogPage() {
                         className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-900/70 text-xs font-medium transition-colors">
                         ✏️ Editar
                       </button>
+                      {tieneDuplicadosMismoDia(clase.id) && (
+                        <button
+                          onClick={(e) => fusionarClase(clase.id, e)}
+                          className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 rounded hover:bg-amber-200 dark:hover:bg-amber-900/70 text-xs font-medium transition-colors">
+                          🔀 Fusionar
+                        </button>
+                      )}
                       <button
                         onClick={(e) => eliminarClase(clase.id, e)}
                         className="px-3 py-1.5 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-900/70 text-xs font-medium transition-colors">

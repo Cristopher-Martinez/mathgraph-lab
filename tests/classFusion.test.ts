@@ -51,11 +51,33 @@ jest.mock("../backend/src/prismaClient", () => {
           const c = clases.find((c) => c.id === where.id);
           return Promise.resolve(c ? { ...c, images: imagenes.filter((i) => i.classId === c.id) } : null);
         }),
-        findMany: jest.fn().mockImplementation(() => {
-          return Promise.resolve(clases.map((c) => ({
+        findMany: jest.fn().mockImplementation(({ where, orderBy }: any = {}) => {
+          let results = [...clases];
+          if (where) {
+            if (where.id?.not !== undefined) {
+              results = results.filter((c) => c.id !== where.id.not);
+            }
+            if (where.date?.gte && where.date?.lt) {
+              const gte = new Date(where.date.gte).getTime();
+              const lt = new Date(where.date.lt).getTime();
+              results = results.filter((c) => {
+                const d = new Date(c.date).getTime();
+                return d >= gte && d < lt;
+              });
+            }
+          }
+          return Promise.resolve(results.map((c) => ({
             ...c,
             images: imagenes.filter((i) => i.classId === c.id),
           })));
+        }),
+        delete: jest.fn().mockImplementation(({ where }: any) => {
+          const idx = clases.findIndex((c) => c.id === where.id);
+          if (idx >= 0) {
+            const [removed] = clases.splice(idx, 1);
+            return Promise.resolve(removed);
+          }
+          return Promise.resolve(null);
         }),
         update: jest.fn().mockImplementation(({ where, data }: any) => {
           const c = clases.find((c) => c.id === where.id);
@@ -75,6 +97,13 @@ jest.mock("../backend/src/prismaClient", () => {
           }
           return Promise.resolve({ count: data.length });
         }),
+        deleteMany: jest.fn().mockImplementation(({ where }: any) => {
+          const before = imagenes.length;
+          const remaining = imagenes.filter((i) => i.classId !== where.classId);
+          imagenes.length = 0;
+          imagenes.push(...remaining);
+          return Promise.resolve({ count: before - remaining.length });
+        }),
       },
       classChunk: {
         deleteMany: jest.fn().mockImplementation(({ where }: any) => {
@@ -84,6 +113,9 @@ jest.mock("../backend/src/prismaClient", () => {
           chunks.push(...remaining);
           return Promise.resolve({ count: before - remaining.length });
         }),
+      },
+      classNote: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       topic: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -555,5 +587,71 @@ describe("Limpieza de artifacts en fusión", () => {
     expect(clases[0].topics).toBe("[]");
     expect(clases[0].formulas).toBe("[]");
     expect(clases[0].activities).toBe("[]");
+  });
+});
+
+describe("Fusión manual (POST /class-log/:id/merge)", () => {
+  it("debe fusionar clases del mismo día en la clase target", async () => {
+    const app = createTestApp();
+
+    // Crear 2 clases del mismo día (simulando edición de fecha)
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-07-01",
+      transcript: "Clase A mañana.",
+    });
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-07-02",
+      transcript: "Clase B tarde.",
+    });
+
+    // Simular que se editó la fecha de la segunda clase al mismo día
+    clases[1].date = new Date("2026-07-01T12:00:00");
+
+    // Fusionar la clase 1 con las del mismo día
+    const res = await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
+
+    expect(res.status).toBe(200);
+    const data = res.json();
+    expect(data.status).toBe("merged");
+    expect(data.mergedCount).toBe(1);
+    expect(data.mergedIds).toContain(clases[1]?.id || 2);
+  });
+
+  it("debe rechazar fusión si no hay clases del mismo día", async () => {
+    const app = createTestApp();
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-08-01",
+      transcript: "Clase sola.",
+    });
+
+    const res = await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
+
+    expect(res.status).toBe(400);
+    const data = res.json();
+    expect(data.error).toContain("No hay otras clases");
+  });
+
+  it("debe llamar a cleanArtifactsForReanalysis para todas las clases", async () => {
+    const { cleanArtifactsForReanalysis } = require("../backend/src/services/autoPropagation");
+    const app = createTestApp();
+
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-09-01",
+      transcript: "Parte 1.",
+    });
+    await injectRequest(app, "POST", "/class-log", {
+      date: "2026-09-02",
+      transcript: "Parte 2.",
+    });
+
+    // Simular misma fecha
+    clases[1].date = new Date("2026-09-01T12:00:00");
+
+    cleanArtifactsForReanalysis.mockClear();
+    await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
+
+    // Debe limpiar artifacts de ambas clases
+    expect(cleanArtifactsForReanalysis).toHaveBeenCalledTimes(2);
   });
 });

@@ -909,6 +909,127 @@ router.post("/:id/reanalyze", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /class-log/:id/merge
+ * Fusionar manualmente todas las clases del mismo día en esta clase.
+ * Útil cuando se edita la fecha de una clase y queda duplicada.
+ */
+router.post("/:id/merge", async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400).json({ error: "ID inválido" });
+      return;
+    }
+
+    const target = await prisma.classLog.findUnique({
+      where: { id },
+      include: { images: true },
+    });
+    if (!target) {
+      res.status(404).json({ error: "Clase no encontrada" });
+      return;
+    }
+
+    // Buscar otras clases del mismo día
+    const fechaTarget = new Date(target.date);
+    const fechaInicio = new Date(fechaTarget);
+    fechaInicio.setHours(0, 0, 0, 0);
+    const fechaFin = new Date(fechaInicio);
+    fechaFin.setDate(fechaFin.getDate() + 1);
+
+    const clasesDelDia = await prisma.classLog.findMany({
+      where: {
+        id: { not: id },
+        date: { gte: fechaInicio, lt: fechaFin },
+      },
+      include: { images: true },
+    });
+
+    if (clasesDelDia.length === 0) {
+      res.status(400).json({ error: "No hay otras clases del mismo día para fusionar" });
+      return;
+    }
+
+    console.log(`[ClassLog] Fusión manual: clase #${id} absorbe ${clasesDelDia.length} clase(s) del mismo día`);
+
+    // Combinar transcripciones de todas las fuentes en la clase target
+    let transcripcionCombinada = target.transcript || "";
+    for (const fuente of clasesDelDia) {
+      if (fuente.transcript && fuente.transcript.trim().length > 0) {
+        transcripcionCombinada += "\n\n--- [Contenido fusionado de clase #" + fuente.id + "] ---\n\n" + fuente.transcript;
+      }
+    }
+
+    // Limpiar artifacts de TODAS las clases involucradas
+    await cleanArtifactsForReanalysis(id);
+    for (const fuente of clasesDelDia) {
+      await cleanArtifactsForReanalysis(fuente.id);
+    }
+
+    // Migrar imágenes de las fuentes al target
+    for (const fuente of clasesDelDia) {
+      if (fuente.images.length > 0) {
+        for (const img of fuente.images) {
+          await prisma.classImage.create({
+            data: { classId: id, url: img.url, caption: img.caption },
+          });
+        }
+      }
+    }
+
+    // Borrar chunks de todas las clases (la target se re-vectoriza, las fuente se eliminan)
+    await prisma.classChunk.deleteMany({ where: { classId: id } });
+
+    // Eliminar las clases fuente (con sus imágenes, chunks, notas)
+    for (const fuente of clasesDelDia) {
+      await prisma.classImage.deleteMany({ where: { classId: fuente.id } });
+      await prisma.classChunk.deleteMany({ where: { classId: fuente.id } });
+      await prisma.classNote.deleteMany({ where: { classId: fuente.id } });
+      await prisma.classLog.delete({ where: { id: fuente.id } });
+    }
+
+    // Actualizar la clase target con todo el contenido combinado
+    const newHash = createHash("sha256").update(transcripcionCombinada).digest("hex");
+    await prisma.classLog.update({
+      where: { id },
+      data: {
+        transcript: transcripcionCombinada,
+        transcriptHash: newHash,
+        summary: "Procesando (fusión manual)...",
+        topics: "[]",
+        formulas: "[]",
+        activities: "[]",
+        vectorized: false,
+        analyzed: false,
+        deepAnalyzed: false,
+        analysisModel: null,
+      },
+    });
+
+    // Limpiar estado Redis
+    const { getRedis } = await import("../services/redisClient");
+    const redis = getRedis();
+    await redis.del(`generation:cancel:${id}`);
+    await redis.del(`propagation:lock:${id}`);
+    await deleteGenerationStatus(id, "class");
+
+    // Re-encolar análisis completo
+    await enqueueFullAnalysis(id, undefined, undefined, true);
+
+    res.json({
+      status: "merged",
+      classId: id,
+      mergedCount: clasesDelDia.length,
+      mergedIds: clasesDelDia.map((c) => c.id),
+      transcriptLength: transcripcionCombinada.length,
+    });
+  } catch (error: any) {
+    console.error("Error al fusionar clases:", error);
+    res.status(500).json({ error: "Error al fusionar: " + error.message });
+  }
+});
+
+/**
  * DELETE /class-log/:id
  * Eliminar una clase y hacer rollback de todos los artifacts generados
  */

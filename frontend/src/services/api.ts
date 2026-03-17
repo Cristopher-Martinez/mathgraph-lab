@@ -236,6 +236,11 @@ export const api = {
       method: "POST",
     }),
 
+  mergeClassLog: (id: number) =>
+    request<any>(`/class-log/${id}/merge`, {
+      method: "POST",
+    }),
+
   generateClassExercises: (id: number) =>
     request<any>(`/class-log/${id}/generate-exercises`, {
       method: "POST",
