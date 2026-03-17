@@ -211,8 +211,13 @@ export default function ClassLogPage() {
 
       const result = await api.createClassLog(data);
 
-      // Backend now responds immediately — analysis happens in background
-      let textoExito = "¡Clase registrada! El análisis y generación de ejercicios continúa en segundo plano.";
+      // Backend responds immediately — analysis happens in background
+      let textoExito: string;
+      if (result.merged) {
+        textoExito = `Contenido fusionado con la clase existente del ${fecha}. Re-análisis en segundo plano.`;
+      } else {
+        textoExito = "¡Clase registrada! El análisis y generación de ejercicios continúa en segundo plano.";
+      }
 
       if (result.advertencias && result.advertencias.length > 0) {
         setMensaje({

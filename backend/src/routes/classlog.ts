@@ -68,8 +68,8 @@ router.post("/", async (req: Request, res: Response) => {
       return;
     }
 
-    // Validar imágenes antes de crear el registro
-    const imagenesData: { url: string; caption: string }[] = [];
+    // Validar y preparar imágenes
+    const imagenesValidas: { base64: string; mimeType: string; caption?: string }[] = [];
     const erroresValidacion: string[] = [];
 
     if (tieneImagenes) {
@@ -87,19 +87,169 @@ router.post("/", async (req: Request, res: Response) => {
           erroresValidacion.push(`Imagen ${i + 1}: ${validacion.error}`);
           continue;
         }
-        imagenesData.push({
-          url: img.base64.substring(0, 100) + "...",
+        imagenesValidas.push({
+          base64: img.base64,
+          mimeType: img.mimeType || "image/jpeg",
           caption: img.caption || "",
         });
       }
     }
 
+    // ═══════════════════════════════════════════════
+    // PROCESAR IMÁGENES: extraer texto y fórmulas
+    // Las imágenes son anotaciones del profesor o actividades de clase.
+    // Su contenido refuerza/complementa la transcripción.
+    // ═══════════════════════════════════════════════
+    let textoImagenes = "";
+    let imagenesData: { url: string; caption: string }[] = [];
+
+    if (imagenesValidas.length > 0) {
+      try {
+        console.log(`[ClassLog] Procesando ${imagenesValidas.length} imágenes para extracción de contenido...`);
+        const batchResult = await procesarImagenesBatch(imagenesValidas);
+
+        // Construir texto extraído de imágenes para enriquecer la transcripción
+        const textosExtraidos: string[] = [];
+        for (let i = 0; i < batchResult.resultados.length; i++) {
+          const r = batchResult.resultados[i];
+          const partes: string[] = [];
+          if (r.textoDetectado) partes.push(r.textoDetectado);
+          if (r.formulas.length > 0) partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
+          if (r.ecuaciones.length > 0) partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
+          if (r.diagramas.length > 0) partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
+          if (r.desigualdades.length > 0) partes.push(`Desigualdades: ${r.desigualdades.join(", ")}`);
+          if (partes.length > 0) textosExtraidos.push(partes.join("\n"));
+        }
+
+        if (textosExtraidos.length > 0) {
+          textoImagenes = "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" + textosExtraidos.join("\n---\n");
+        }
+
+        // Guardar metadata de imágenes con captions extraídos (no base64 completo)
+        imagenesData = batchResult.resultados.map((r, i) => ({
+          url: `[imagen-${i + 1}]`,
+          caption: (r.textoDetectado || "").substring(0, 500) || imagenesValidas[i]?.caption || "",
+        }));
+
+        for (const err of batchResult.errores) {
+          erroresValidacion.push(`Imagen ${err.indice + 1}: error en análisis — ${err.error}`);
+        }
+
+        console.log(`[ClassLog] Imágenes procesadas: ${batchResult.resultados.length} OK, ${batchResult.errores.length} errores, texto extraído: ${textoImagenes.length} chars`);
+      } catch (err: any) {
+        console.warn("[ClassLog] Error procesando imágenes batch (fallback sin análisis):", err.message);
+        imagenesData = imagenesValidas.map((img, i) => ({
+          url: `[imagen-${i + 1}]`,
+          caption: img.caption || "",
+        }));
+      }
+    }
+
     const textoTranscripcion = tieneTranscripcion ? transcript.trim() : "";
+    const textoCompleto = (textoTranscripcion + textoImagenes).trim();
+
+    // ═══════════════════════════════════════════════
+    // FUSIÓN POR FECHA: si ya existe una clase en esta fecha,
+    // se fusiona como si fuera la misma clase (dedup por día).
+    // ═══════════════════════════════════════════════
+    const fechaClase = new Date(date + "T00:00:00");
+    const fechaSiguiente = new Date(fechaClase);
+    fechaSiguiente.setDate(fechaSiguiente.getDate() + 1);
+
+    const claseExistente = await prisma.classLog.findFirst({
+      where: {
+        date: {
+          gte: fechaClase,
+          lt: fechaSiguiente,
+        },
+      },
+      include: { images: true },
+    });
+
+    if (claseExistente) {
+      // ─── FUSIÓN: misma fecha = misma clase ───
+      console.log(`[ClassLog] Fusionando con clase existente #${claseExistente.id} (fecha: ${date})`);
+
+      // Combinar transcripción existente + nuevo contenido
+      const transcripcionMerged = claseExistente.transcript
+        ? claseExistente.transcript + "\n\n--- [Contenido adicional] ---\n\n" + textoCompleto
+        : textoCompleto;
+
+      // Agregar nuevas imágenes a la clase existente
+      if (imagenesData.length > 0) {
+        await prisma.classImage.createMany({
+          data: imagenesData.map((img) => ({
+            classId: claseExistente.id,
+            url: img.url,
+            caption: img.caption,
+          })),
+        });
+      }
+
+      // Limpiar chunks para re-vectorización limpia
+      await prisma.classChunk.deleteMany({
+        where: { classId: claseExistente.id },
+      });
+
+      // Actualizar transcripción y reset de flags de análisis
+      const newHash = createHash("sha256").update(transcripcionMerged).digest("hex");
+      await prisma.classLog.update({
+        where: { id: claseExistente.id },
+        data: {
+          transcript: transcripcionMerged,
+          transcriptHash: newHash,
+          summary: "Procesando (fusión)...",
+          vectorized: false,
+          analyzed: false,
+          deepAnalyzed: false,
+          analysisModel: null,
+        },
+      });
+
+      // Limpiar estado Redis para evitar bloqueos
+      const { getRedis } = await import("../services/redisClient");
+      const redis = getRedis();
+      await redis.del(`generation:cancel:${claseExistente.id}`);
+      await redis.del(`propagation:lock:${claseExistente.id}`);
+      await deleteGenerationStatus(claseExistente.id, "class");
+
+      // Re-encolar análisis completo de 3 fases con contenido combinado
+      enqueueFullAnalysis(claseExistente.id, undefined, undefined, true).catch((err) => {
+        console.error("[ClassLog] Error encolando re-análisis (fusión):", err);
+      });
+
+      const totalImagenes = claseExistente.images.length + imagenesData.length;
+
+      const respuesta: any = {
+        id: claseExistente.id,
+        date: claseExistente.date,
+        summary: "Procesando (fusión)...",
+        merged: true,
+        processing: true,
+        stats: {
+          longitudTranscripcion: transcripcionMerged.length,
+          imagenesRecibidas: tieneImagenes ? images.length : 0,
+          imagenesRechazadas: erroresValidacion.length,
+          imagenesTotal: totalImagenes,
+        },
+      };
+
+      if (erroresValidacion.length > 0) {
+        respuesta.advertencias = erroresValidacion;
+      }
+
+      res.status(200).json(respuesta);
+      return;
+    }
+
+    // ═══════════════════════════════════════════════
+    // NUEVA CLASE (no existe para esta fecha)
+    // ═══════════════════════════════════════════════
 
     // Dedup: check for duplicate transcript hash (last 24h)
     let transcriptHash: string | null = null;
-    if (textoTranscripcion.length > 0) {
-      transcriptHash = createHash("sha256").update(textoTranscripcion).digest("hex");
+    if (textoCompleto.length > 0) {
+      transcriptHash = createHash("sha256").update(textoCompleto).digest("hex");
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const existing = await prisma.classLog.findFirst({
         where: {
@@ -118,14 +268,14 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     console.log(
-      `[ClassLog] Creando clase (async): transcripción=${tieneTranscripcion ? `${textoTranscripcion.length} chars` : "no"}, imágenes=${imagenesData.length}`,
+      `[ClassLog] Creando clase nueva: transcripción=${textoCompleto.length} chars, imágenes=${imagenesData.length}`,
     );
 
-    // Create minimal record immediately — analysis happens in background
+    // Create minimal record — analysis happens in background
     const classLog = await prisma.classLog.create({
       data: {
         date: new Date(date + "T12:00:00"),
-        transcript: textoTranscripcion,
+        transcript: textoCompleto,
         transcriptHash,
         summary: "Procesando...",
         topics: "[]",
@@ -142,11 +292,7 @@ router.post("/", async (req: Request, res: Response) => {
     });
 
     // Enqueue full analysis + propagation in background
-    enqueueFullAnalysis(
-      classLog.id,
-      textoTranscripcion,
-      tieneImagenes ? images.filter((img: any) => img.base64) : undefined,
-    ).catch((err) => {
+    enqueueFullAnalysis(classLog.id).catch((err) => {
       console.error("[ClassLog] Error encolando análisis:", err);
     });
 
@@ -161,7 +307,7 @@ router.post("/", async (req: Request, res: Response) => {
       imagenes: classLog.images.length,
       processing: true,
       stats: {
-        longitudTranscripcion: textoTranscripcion.length,
+        longitudTranscripcion: textoCompleto.length,
         imagenesRecibidas: tieneImagenes ? images.length : 0,
         imagenesRechazadas: erroresValidacion.length,
       },
@@ -645,15 +791,33 @@ router.post("/:id/analyze-image", async (req: Request, res: Response) => {
       })),
     );
 
-    // Guardar imágenes en BD
+    // Guardar imágenes en BD con captions extraídos
     for (let i = 0; i < batchResult.resultados.length; i++) {
       const resultado = batchResult.resultados[i];
       await prisma.classImage.create({
         data: {
           classId: id,
-          url: imagenesInput[i].base64.substring(0, 100) + "...",
-          caption: resultado.textoDetectado.substring(0, 500),
+          url: `[imagen-analizada-${i + 1}]`,
+          caption: (resultado.textoDetectado || "").substring(0, 500),
         },
+      });
+    }
+
+    // Enriquecer la transcripción con el contenido extraído de imágenes
+    const textosExtraidos: string[] = [];
+    for (const r of batchResult.resultados) {
+      const partes: string[] = [];
+      if (r.textoDetectado) partes.push(r.textoDetectado);
+      if (r.formulas.length > 0) partes.push(`Fórmulas: ${r.formulas.join(", ")}`);
+      if (r.ecuaciones.length > 0) partes.push(`Ecuaciones: ${r.ecuaciones.join(", ")}`);
+      if (r.diagramas.length > 0) partes.push(`Diagramas: ${r.diagramas.join(", ")}`);
+      if (partes.length > 0) textosExtraidos.push(partes.join("\n"));
+    }
+    if (textosExtraidos.length > 0) {
+      const textoImagenes = "\n\n[CONTENIDO EXTRAÍDO DE IMÁGENES]\n" + textosExtraidos.join("\n---\n");
+      await prisma.classLog.update({
+        where: { id },
+        data: { transcript: clase.transcript + textoImagenes },
       });
     }
 
