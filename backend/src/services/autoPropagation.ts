@@ -152,6 +152,14 @@ export async function analyzeAndPropagate(
 
     console.log(`[AnalyzeAndPropagate] Fase 3 completada: verdad Pro para clase ${classId}`);
 
+    // Re-indexar con summary real para mejorar calidad de búsqueda RAG
+    try {
+      await indexClassTranscript(classId, textoTranscripcion, truth.resumen);
+      console.log(`[AnalyzeAndPropagate] Re-indexación RAG con summary Pro completada`);
+    } catch (err) {
+      console.error(`[AnalyzeAndPropagate] Re-indexación RAG falló (no bloquea):`, err);
+    }
+
     // ═══════════════════════════════════════════════
     // PROPAGACIÓN: Topics, Exercises, DAG
     // ═══════════════════════════════════════════════
