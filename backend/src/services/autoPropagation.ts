@@ -84,10 +84,11 @@ export async function cleanArtifactsForReanalysis(classId: number): Promise<void
           data: { createdByClassId: null },
         });
       } else {
-        const ejerciciosManuales = await tx.exercise.count({
-          where: { topicId: topic.id, generatedByClassId: null },
+        // Verificar si quedan ejercicios de CUALQUIER origen (manuales o de otras clases)
+        const ejerciciosRestantes = await tx.exercise.count({
+          where: { topicId: topic.id },
         });
-        if (ejerciciosManuales > 0) {
+        if (ejerciciosRestantes > 0) {
           await tx.topic.update({
             where: { id: topic.id },
             data: { createdByClassId: null },

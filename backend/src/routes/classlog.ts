@@ -960,33 +960,52 @@ router.post("/:id/merge", async (req: Request, res: Response) => {
       }
     }
 
-    // Limpiar artifacts de TODAS las clases involucradas
+    // Limpiar artifacts del target (ejercicios, topics, notas generadas)
     await cleanArtifactsForReanalysis(id);
-    for (const fuente of clasesDelDia) {
-      await cleanArtifactsForReanalysis(fuente.id);
-    }
 
-    // Migrar imágenes de las fuentes al target
-    for (const fuente of clasesDelDia) {
-      if (fuente.images.length > 0) {
-        for (const img of fuente.images) {
-          await prisma.classImage.create({
-            data: { classId: id, url: img.url, caption: img.caption },
-          });
+    // Migrar imágenes y eliminar clases fuente en una transacción
+    // para evitar FK constraint violations por orden parcial
+    await prisma.$transaction(async (tx) => {
+      // Migrar imágenes de las fuentes al target
+      for (const fuente of clasesDelDia) {
+        if (fuente.images.length > 0) {
+          for (const img of fuente.images) {
+            await tx.classImage.create({
+              data: { classId: id, url: img.url, caption: img.caption },
+            });
+          }
         }
       }
-    }
 
-    // Borrar chunks de todas las clases (la target se re-vectoriza, las fuente se eliminan)
-    await prisma.classChunk.deleteMany({ where: { classId: id } });
+      // Borrar chunks del target (se re-vectoriza)
+      await tx.classChunk.deleteMany({ where: { classId: id } });
 
-    // Eliminar las clases fuente (con sus imágenes, chunks, notas)
-    for (const fuente of clasesDelDia) {
-      await prisma.classImage.deleteMany({ where: { classId: fuente.id } });
-      await prisma.classChunk.deleteMany({ where: { classId: fuente.id } });
-      await prisma.classNote.deleteMany({ where: { classId: fuente.id } });
-      await prisma.classLog.delete({ where: { id: fuente.id } });
-    }
+      // Eliminar cada clase fuente: primero limpiar artifacts, luego todos los hijos FK, luego el classLog
+      for (const fuente of clasesDelDia) {
+        // Limpiar los artifacts generados por esta clase (ejercicios, topics, deps)
+        // Nota: no podemos usar cleanArtifactsForReanalysis aquí porque ya estamos en transaction
+        // En su lugar, limpiamos directamente los hijos FK antes de borrar
+        const ejercicios = await tx.exercise.findMany({
+          where: { generatedByClassId: fuente.id },
+          select: { id: true },
+        });
+        if (ejercicios.length > 0) {
+          const ejIds = ejercicios.map((e) => e.id);
+          await tx.exerciseTip.deleteMany({ where: { exerciseId: { in: ejIds } } });
+          await tx.exerciseReview.deleteMany({ where: { exerciseId: { in: ejIds } } });
+          await tx.exercise.deleteMany({ where: { generatedByClassId: fuente.id } });
+        }
+        await tx.topicDependency.deleteMany({ where: { generatedByClassId: fuente.id } });
+
+        // Limpiar TODOS los hijos FK directos del classLog fuente
+        await tx.classImage.deleteMany({ where: { classId: fuente.id } });
+        await tx.classChunk.deleteMany({ where: { classId: fuente.id } });
+        await tx.classNote.deleteMany({ where: { classId: fuente.id } });
+
+        // Ahora sí es seguro borrar el classLog
+        await tx.classLog.delete({ where: { id: fuente.id } });
+      }
+    });
 
     // Actualizar la clase target con todo el contenido combinado
     const newHash = createHash("sha256").update(transcripcionCombinada).digest("hex");

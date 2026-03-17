@@ -11,10 +11,8 @@ const chunks: any[] = [];
 let findFirstFilter: any = null;
 
 jest.mock("../backend/src/prismaClient", () => {
-  return {
-    __esModule: true,
-    default: {
-      classLog: {
+  const mockPrisma: any = {
+    classLog: {
         create: jest.fn().mockImplementation(({ data, include }: any) => {
           const newClass = {
             id: clases.length + 1,
@@ -124,13 +122,25 @@ jest.mock("../backend/src/prismaClient", () => {
       topicDependency: {
         findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       exercise: {
         findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
-    },
-  };
-});
+      exerciseTip: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      exerciseReview: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+
+    // $transaction ejecuta el callback pasándole el mismo mock como tx
+    mockPrisma.$transaction = jest.fn().mockImplementation(async (cb: any) => cb(mockPrisma));
+
+    return { __esModule: true, default: mockPrisma };
+  });
 
 // Mock imageAnalysis — simula procesamiento de imágenes
 jest.mock("../backend/src/services/imageAnalysis", () => ({
@@ -632,8 +642,9 @@ describe("Fusión manual (POST /class-log/:id/merge)", () => {
     expect(data.error).toContain("No hay otras clases");
   });
 
-  it("debe llamar a cleanArtifactsForReanalysis para todas las clases", async () => {
+  it("debe limpiar artifacts del target y eliminar fuentes con sus hijos FK", async () => {
     const { cleanArtifactsForReanalysis } = require("../backend/src/services/autoPropagation");
+    const prisma = require("../backend/src/prismaClient").default;
     const app = createTestApp();
 
     await injectRequest(app, "POST", "/class-log", {
@@ -651,7 +662,11 @@ describe("Fusión manual (POST /class-log/:id/merge)", () => {
     cleanArtifactsForReanalysis.mockClear();
     await injectRequest(app, "POST", `/class-log/${clases[0].id}/merge`);
 
-    // Debe limpiar artifacts de ambas clases
-    expect(cleanArtifactsForReanalysis).toHaveBeenCalledTimes(2);
+    // cleanArtifactsForReanalysis se llama solo para el target
+    expect(cleanArtifactsForReanalysis).toHaveBeenCalledTimes(1);
+    expect(cleanArtifactsForReanalysis).toHaveBeenCalledWith(clases[0].id);
+
+    // La transacción debe haber eliminado los hijos FK de la fuente
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 });
