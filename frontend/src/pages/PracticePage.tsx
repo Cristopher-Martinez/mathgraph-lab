@@ -123,8 +123,18 @@ export default function PracticePage() {
 
   const currentEx = filteredExercises[currentExIndex];
 
+  const [searchPractice, setSearchPractice] = useState("");
+
   // ─── RENDER: Categories View ─────────────────────
   if (view === "categories") {
+    const filteredCategories = searchPractice.trim()
+      ? Object.fromEntries(
+          Object.entries(categories).filter(([topicName]) =>
+            topicName.toLowerCase().includes(searchPractice.trim().toLowerCase()),
+          ),
+        )
+      : categories;
+
     return (
       <div className="space-y-6">
         <div>
@@ -219,8 +229,20 @@ export default function PracticePage() {
           en la lista o el botón en la vista de resolución.
         </div>
 
+        {/* Búsqueda de categoría */}
+        <div className="relative">
+          <input
+            type="text"
+            value={searchPractice}
+            onChange={(e) => setSearchPractice(e.target.value)}
+            placeholder="Buscar tema..."
+            className="w-full sm:w-80 px-4 py-2 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
+          />
+          <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Object.entries(categories).map(([topicName, exercises]) => {
+          {Object.entries(filteredCategories).map(([topicName, exercises]) => {
             const easy = exercises.filter(
               (e: any) => e.difficulty === "easy",
             ).length;
@@ -259,13 +281,18 @@ export default function PracticePage() {
               </button>
             );
           })}
+          {Object.keys(filteredCategories).length === 0 && searchPractice.trim() && (
+            <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">
+              No se encontraron categorías para "{searchPractice}"
+            </p>
+          )}
         </div>
 
         {allExercises.length > 0 && (
           <div className="text-center text-sm text-gray-400 dark:text-gray-500 pt-4">
             Total: {allExercises.length} ejercicios • Puntaje acumulado: {score}
           </div>
-        )}
+        )}}
       </div>
     );
   }

@@ -32,10 +32,13 @@ function nodeStyle(color: string): React.CSSProperties {
     fontSize: 12,
     border: "none",
     boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-    maxWidth: 160,
+    maxWidth: 140,
     textAlign: "center" as const,
     wordBreak: "break-word" as const,
-    lineHeight: 1.3,
+    lineHeight: 1.2,
+    whiteSpace: "nowrap" as const,
+    overflow: "hidden" as const,
+    textOverflow: "ellipsis" as const,
   };
 }
 
@@ -53,8 +56,10 @@ function layoutNodes(
   }[],
   dagEdges: { parentId: number; childId: number }[],
 ): Node[] {
-  const X_GAP = 190; // uniform horizontal spacing
-  const Y_GAP = 140; // vertical spacing between levels
+  // Scale gaps based on graph size for compact layouts
+  const totalNodes = dagNodes.length;
+  const X_GAP = totalNodes > 20 ? 150 : totalNodes > 10 ? 170 : 190;
+  const Y_GAP = totalNodes > 20 ? 100 : totalNodes > 10 ? 120 : 140;
 
   // Build adjacency
   const parentMap = new Map<number, number[]>();
@@ -337,8 +342,8 @@ export default function DAGGraph({
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
-        minZoom={0.3}
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
+        minZoom={0.1}
         maxZoom={2}>
         <Background variant={BackgroundVariant.Dots} gap={20} />
         <Controls />

@@ -538,6 +538,13 @@ export default function TopicsPage() {
   }
 
   // ─── Topics Grid ─────────────────────────────────
+  const [searchTopic, setSearchTopic] = useState("");
+  const filteredTopics = searchTopic.trim()
+    ? topics.filter((t) =>
+        t.name.toLowerCase().includes(searchTopic.trim().toLowerCase()),
+      )
+    : topics;
+
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold dark:text-gray-100">Temas</h1>
@@ -582,8 +589,20 @@ export default function TopicsPage() {
         </div>
       )}
 
+      {/* Búsqueda de temas */}
+      <div className="relative">
+        <input
+          type="text"
+          value={searchTopic}
+          onChange={(e) => setSearchTopic(e.target.value)}
+          placeholder="Buscar tema..."
+          className="w-full sm:w-80 px-4 py-2 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
+        />
+        <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {topics.map((t) => (
+        {filteredTopics.map((t) => (
           <TopicCard
             key={t.id}
             id={t.id}
@@ -591,6 +610,11 @@ export default function TopicsPage() {
             exerciseCount={t.exercises?.length || 0}
           />
         ))}
+        {filteredTopics.length === 0 && searchTopic.trim() && (
+          <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">
+            No se encontraron temas para "{searchTopic}"
+          </p>
+        )}
       </div>
     </div>
   );
