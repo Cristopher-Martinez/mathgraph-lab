@@ -292,7 +292,7 @@ export default function PracticePage() {
           <div className="text-center text-sm text-gray-400 dark:text-gray-500 pt-4">
             Total: {allExercises.length} ejercicios • Puntaje acumulado: {score}
           </div>
-        )}}
+        )}
       </div>
     );
   }
