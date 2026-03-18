@@ -500,7 +500,7 @@ describe("Procesamiento de imágenes en POST", () => {
     expect(clases[0].transcript).toContain("[CONTENIDO EXTRAÍDO DE IMÁGENES]");
   });
 
-  it("debe almacenar captions extraídos en ClassImage (no base64 truncado)", async () => {
+  it("debe almacenar imágenes con data URL renderizable", async () => {
     const prisma = require("../backend/src/prismaClient").default;
     const app = createTestApp();
 
@@ -510,11 +510,11 @@ describe("Procesamiento de imágenes en POST", () => {
       images: [{ base64: "dGVzdA==", mimeType: "image/jpeg" }],
     });
 
-    // Las imágenes almacenadas NO deben tener base64 truncado
+    // Las imágenes almacenadas deben tener data URL completa
     const imagenesCreadas = clases[0].images;
     for (const img of imagenesCreadas) {
       expect(img.url).not.toContain("...");
-      expect(img.url).toMatch(/\[imagen-\d+\]/);
+      expect(img.url).toMatch(/^data:image\/.+;base64,/);
     }
   });
 });

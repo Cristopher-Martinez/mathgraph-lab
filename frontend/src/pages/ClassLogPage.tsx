@@ -1383,12 +1383,20 @@ function DetalleClase({
               {clase.imagenes.map((img: any, i: number) => (
                 <div
                   key={i}
-                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Imagen {i + 1}
-                  </p>
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
+                  {img.url && img.url.startsWith("data:") ? (
+                    <img
+                      src={img.url}
+                      alt={img.caption || `Imagen ${i + 1}`}
+                      className="w-full rounded-md object-contain max-h-96"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Imagen {i + 1} (sin preview)
+                    </p>
+                  )}
                   {img.caption && (
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
                       {img.caption}
                     </p>
                   )}

@@ -138,14 +138,18 @@ router.post("/", async (req: Request, res: Response) => {
             textosExtraidos.join("\n---\n");
         }
 
-        // Guardar metadata de imágenes con captions extraídos (no base64 completo)
-        imagenesData = batchResult.resultados.map((r, i) => ({
-          url: `[imagen-${i + 1}]`,
-          caption:
-            (r.textoDetectado || "").substring(0, 500) ||
-            imagenesValidas[i]?.caption ||
-            "",
-        }));
+        // Guardar imágenes con data URL para visualización + captions extraídos
+        imagenesData = batchResult.resultados.map((r, i) => {
+          const mime = imagenesValidas[i]?.mimeType || "image/jpeg";
+          const b64 = imagenesValidas[i]?.base64 || "";
+          return {
+            url: b64 ? `data:${mime};base64,${b64}` : `[imagen-${i + 1}]`,
+            caption:
+              (r.textoDetectado || "").substring(0, 500) ||
+              imagenesValidas[i]?.caption ||
+              "",
+          };
+        });
 
         for (const err of batchResult.errores) {
           erroresValidacion.push(
@@ -161,10 +165,13 @@ router.post("/", async (req: Request, res: Response) => {
           "[ClassLog] Error procesando imágenes batch (fallback sin análisis):",
           err.message,
         );
-        imagenesData = imagenesValidas.map((img, i) => ({
-          url: `[imagen-${i + 1}]`,
-          caption: img.caption || "",
-        }));
+        imagenesData = imagenesValidas.map((img, i) => {
+          const mime = img.mimeType || "image/jpeg";
+          return {
+            url: img.base64 ? `data:${mime};base64,${img.base64}` : `[imagen-${i + 1}]`,
+            caption: img.caption || "",
+          };
+        });
       }
     }
 
@@ -1205,7 +1212,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
           continue;
         }
         imagenesData.push({
-          url: img.base64,
+          url: `data:${img.mimeType || "image/jpeg"};base64,${img.base64}`,
           caption: img.caption || "",
         });
       }
