@@ -644,6 +644,53 @@ router.get("/timeline/weekly", async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /class-log/:id/images/:imgId
+ * Sirve una imagen individual como binario.
+ *
+ * Las imágenes se almacenan como data URLs base64 (deuda técnica) y devolverlas
+ * todas juntas en GET /class-log/:id colgaba el detalle. Este endpoint permite
+ * cargarlas perezosamente sólo cuando el usuario abre la pestaña "Imágenes".
+ */
+router.get(
+  "/:id/images/:imgId",
+  async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const imgId = parseInt(req.params.imgId, 10);
+      if (isNaN(id) || isNaN(imgId)) {
+        res.status(400).json({ error: "ID inválido" });
+        return;
+      }
+
+      const img = await prisma.classImage.findFirst({
+        where: { id: imgId, classId: id },
+        select: { url: true },
+      });
+      if (!img) {
+        res.status(404).json({ error: "Imagen no encontrada" });
+        return;
+      }
+
+      const dataUrlMatch = /^data:([^;]+);base64,(.+)$/.exec(img.url);
+      if (dataUrlMatch) {
+        const [, mime, b64] = dataUrlMatch;
+        const buf = Buffer.from(b64, "base64");
+        res.setHeader("Content-Type", mime);
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        res.send(buf);
+        return;
+      }
+
+      // Si por alguna razón no es data URL (URL externa antigua), redirigir.
+      res.redirect(img.url);
+    } catch (error: any) {
+      console.error("Error al obtener imagen:", error);
+      res.status(500).json({ error: "Error al obtener la imagen" });
+    }
+  },
+);
+
+/**
  * GET /class-log/:id
  * Detalle de una clase específica
  */
@@ -657,7 +704,9 @@ router.get("/:id", async (req: Request, res: Response) => {
 
     const clase = await prisma.classLog.findUnique({
       where: { id },
-      include: { images: true },
+      include: {
+        images: { select: { id: true, caption: true } },
+      },
     });
 
     if (!clase) {
@@ -679,7 +728,13 @@ router.get("/:id", async (req: Request, res: Response) => {
       temas: safeParseJson(clase.topics),
       formulas: safeParseJson(clase.formulas),
       actividades: safeParseJson(clase.activities),
-      imagenes: clase.images,
+      // NO devolvemos los data URLs base64 (pueden ser decenas de MB y colgaban el detalle).
+      // El frontend pide cada imagen vía GET /class-log/:id/images/:imgId.
+      imagenes: clase.images.map((img) => ({
+        id: img.id,
+        caption: img.caption,
+        url: `/api/class-log/${clase.id}/images/${img.id}`,
+      })),
       vectorized: clase.vectorized,
       analyzed: clase.analyzed,
       deepAnalyzed: clase.deepAnalyzed,

@@ -1382,12 +1382,14 @@ function DetalleClase({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {clase.imagenes.map((img: any, i: number) => (
                 <div
-                  key={i}
+                  key={img.id ?? i}
                   className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
-                  {img.url && img.url.startsWith("data:") ? (
+                  {img.url ? (
                     <img
                       src={img.url}
                       alt={img.caption || `Imagen ${i + 1}`}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full rounded-md object-contain max-h-96"
                     />
                   ) : (
