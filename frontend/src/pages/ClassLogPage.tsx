@@ -1380,30 +1380,41 @@ function DetalleClase({
           {/* Imágenes tab */}
           {detailTab === "imagenes" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {clase.imagenes.map((img: any, i: number) => (
-                <div
-                  key={img.id ?? i}
-                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
-                  {img.url ? (
-                    <img
-                      src={img.url}
-                      alt={img.caption || `Imagen ${i + 1}`}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full rounded-md object-contain max-h-96"
-                    />
-                  ) : (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Imagen {i + 1} (sin preview)
-                    </p>
-                  )}
-                  {img.caption && (
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                      {img.caption}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {clase.imagenes.map((img: any, i: number) => {
+                // El navegador no manda Authorization en <img>, así que pasamos el token por query.
+                const token =
+                  typeof window !== "undefined"
+                    ? localStorage.getItem("auth_token")
+                    : null;
+                const src =
+                  img.url && token && !img.url.includes("token=")
+                    ? `${img.url}${img.url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+                    : img.url;
+                return (
+                  <div
+                    key={img.id ?? i}
+                    className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 space-y-2">
+                    {src ? (
+                      <img
+                        src={src}
+                        alt={img.caption || `Imagen ${i + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full rounded-md object-contain max-h-96"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Imagen {i + 1} (sin preview)
+                      </p>
+                    )}
+                    {img.caption && (
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        {img.caption}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

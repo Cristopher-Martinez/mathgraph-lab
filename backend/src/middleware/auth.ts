@@ -12,11 +12,19 @@ export async function authMiddleware(
 ) {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Algunos clientes no pueden enviar headers (ej. <img src="..."> del navegador).
+    // Para esos casos aceptamos el token vía query string (?token=...).
+    let token: string | undefined;
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.slice(7);
+    } else if (typeof req.query.token === "string" && req.query.token) {
+      token = req.query.token;
+    }
+
+    if (!token) {
       return res.status(401).json({ error: "No autorizado" });
     }
 
-    const token = authHeader.slice(7);
     const redis = getRedis();
     const raw = await redis.get(`session:${token}`);
 
