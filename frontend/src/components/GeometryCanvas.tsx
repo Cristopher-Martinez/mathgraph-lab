@@ -36,13 +36,33 @@ export default function GeometryCanvas() {
     selectedLine: isDark ? "#818cf8" : "#6366f1",
   };
 
+  // Ancho y alto responsive: escucha resize del contenedor (rotación, toggle de sidebar, etc.)
+  // Altura se adapta al viewport en mobile y crece hasta 500px en desktop.
   useEffect(() => {
-    if (containerRef.current) {
-      setDims({
-        w: containerRef.current.clientWidth,
-        h: 500,
-      });
-    }
+    const el = containerRef.current;
+    if (!el) return;
+
+    const updateDims = () => {
+      const width = el.clientWidth || 320;
+      // En pantallas pequeñas, usar hasta el 60% del viewport para que entre con UI
+      const maxHeight = Math.min(
+        500,
+        Math.max(280, Math.floor(window.innerHeight * 0.6)),
+      );
+      setDims({ w: width, h: maxHeight });
+    };
+
+    updateDims();
+
+    const ro = new ResizeObserver(updateDims);
+    ro.observe(el);
+    window.addEventListener("resize", updateDims);
+    window.addEventListener("orientationchange", updateDims);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateDims);
+      window.removeEventListener("orientationchange", updateDims);
+    };
   }, []);
 
   const ORIGIN_X = dims.w / 2;

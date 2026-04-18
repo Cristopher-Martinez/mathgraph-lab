@@ -1,23 +1,53 @@
 const BASE_URL = "/api";
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+// Timeout por defecto para evitar spinners infinitos cuando el backend se cuelga
+// o la red se cae. Nginx tiene proxy_read_timeout 300s, pero la UX quiere algo humano.
+const DEFAULT_TIMEOUT_MS = 30000;
+
+async function request<T>(
+  path: string,
+  options?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
   const token = localStorage.getItem("auth_token");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers,
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || "Request failed");
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: externalSignal, ...rest } =
+    options || {};
+
+  // Combinar signal externo (si viene) con timeout interno
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", () => controller.abort());
   }
-  const text = await res.text();
-  if (!text) return undefined as unknown as T;
-  return JSON.parse(text) as T;
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers,
+      ...rest,
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || "Request failed");
+    }
+    const text = await res.text();
+    if (!text) return undefined as unknown as T;
+    return JSON.parse(text) as T;
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(
+        `La solicitud tardó demasiado (>${Math.round(timeoutMs / 1000)}s). Revisa tu conexión o intenta de nuevo.`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export const api = {
@@ -194,7 +224,21 @@ export const api = {
     }),
 
   // ClassLog - Registro de Clases
-  getClassLogs: () => request<any[]>("/class-log"),
+  // El backend ahora pagina y envuelve la respuesta en { items, total, limit, offset }.
+  // Mantenemos la firma vieja (Promise<any[]>) desempaquetando items aquí, para no
+  // romper los 4 call sites existentes (ClassLogPage, ChatPage, TopicsPage, PracticePage).
+  getClassLogs: async (params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit != null) qs.set("limit", String(params.limit));
+    if (params?.offset != null) qs.set("offset", String(params.offset));
+    const query = qs.toString();
+    const resp = await request<
+      | any[]
+      | { items: any[]; total: number; limit: number; offset: number }
+    >(`/class-log${query ? "?" + query : ""}`);
+    // Backward-compat: si el backend viejo devolvía array plano, úsalo tal cual.
+    return Array.isArray(resp) ? resp : resp.items;
+  },
 
   getClassLog: (id: number) => request<any>(`/class-log/${id}`),
 

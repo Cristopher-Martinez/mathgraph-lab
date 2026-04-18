@@ -421,27 +421,62 @@ router.get("/generation-status", async (_req: Request, res: Response) => {
 
 /**
  * GET /class-log
- * Listar todas las clases registradas
+ * Listar clases registradas con paginación opcional.
+ *
+ * Query params:
+ *   - limit (default 50, max 200)
+ *   - offset (default 0)
+ *
+ * Devuelve sólo metadata + _count de imágenes (NUNCA los base64 completos,
+ * que pueden pesar decenas de MB por clase y colgaban el frontend).
  */
-router.get("/", async (_req: Request, res: Response) => {
+router.get("/", async (req: Request, res: Response) => {
   try {
-    const clases = await prisma.classLog.findMany({
-      orderBy: { date: "desc" },
-      include: { images: true },
-    });
+    const limitRaw = parseInt(String(req.query.limit ?? "50"), 10);
+    const offsetRaw = parseInt(String(req.query.offset ?? "0"), 10);
+    const limit = Math.min(
+      200,
+      Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 50),
+    );
+    const offset = Math.max(0, Number.isFinite(offsetRaw) ? offsetRaw : 0);
+
+    const [clases, total] = await Promise.all([
+      prisma.classLog.findMany({
+        orderBy: { date: "desc" },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          date: true,
+          title: true,
+          summary: true,
+          topics: true,
+          formulas: true,
+          activities: true,
+          createdAt: true,
+          analyzed: true,
+          deepAnalyzed: true,
+          _count: { select: { images: true } },
+        },
+      }),
+      prisma.classLog.count(),
+    ]);
 
     const resultado = clases.map((c) => ({
       id: c.id,
       date: c.date,
+      title: c.title,
       summary: c.summary,
       temas: safeParseJson(c.topics),
       formulas: safeParseJson(c.formulas),
       actividades: safeParseJson(c.activities),
-      cantidadImagenes: c.images.length,
+      cantidadImagenes: c._count.images,
+      analyzed: c.analyzed,
+      deepAnalyzed: c.deepAnalyzed,
       createdAt: c.createdAt,
     }));
 
-    res.json(resultado);
+    res.json({ items: resultado, total, limit, offset });
   } catch (error: any) {
     console.error("Error al listar clases:", error);
     res.status(500).json({ error: "Error al obtener las clases" });
