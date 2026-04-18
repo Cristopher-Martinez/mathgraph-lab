@@ -59,7 +59,9 @@ guardedHook("pre-compact", async (input) => {
       `**Goal**: ${loop.goal || "(no goal)"}`,
       `**Started**: ${loop.startedAt || "unknown"}`,
       `**CRITICAL**: You are inside an active loop. ALL output MUST go through \`loopAwaitInput(sessionId="${loop.sessionId}", synthesis)\`.`,
-      `NEVER respond directly to the user. 🔁 Gate: "Am I in a loop? → loopAwaitInput. No exceptions."`,
+      `NEVER respond directly to the user. 🔁 Gate: "Am I in a loop? → loopAwaitInput. No exceptions.
+
+**NOTE**: If the user's current message does NOT reference this loop, it may be stale. Call loopEnd(sessionId) to clean up before proceeding normally."`,
       ``,
     );
   }

@@ -26,6 +26,24 @@ import {
   writeNote,
 } from "./temporal-mailbox.mjs";
 
+import { writeFileSync, appendFileSync } from "fs";
+
+/**
+ * Append to a session-scoped edit tracker file.
+ * This prevents cross-session contamination of edit tracking data.
+ * @param {string} sessionsDir
+ * @param {string} sessionId
+ * @param {string[]} filenames - basenames of edited files
+ */
+function sessionScopedEditTracker(sessionsDir, sessionId, filenames) {
+  if (!sessionId || !filenames.length) return;
+  try {
+    const tracker = join(sessionsDir, `edit-tracker-${sessionId.slice(0, 8)}.txt`);
+    appendFileSync(tracker, filenames.join("\n") + "\n");
+  } catch { /* non-fatal */ }
+}
+
+
 /** Tools that produce file edits. */
 export const EDIT_TOOLS = [
   "replace_string_in_file",
@@ -85,19 +103,22 @@ export function trackEditedFiles(toolName, toolInput, sessionsDir, cwd) {
   }
   try {
     const activeLoops = readAllActiveLoops(cwd);
+    // Only register edits for the MOST RECENT loop to prevent cross-session contamination.
     if (activeLoops.length > 0) {
-      for (const loop of activeLoops) {
-        if (loop.sessionId) {
-          recordEditedFile(
-            cwd,
-            loop.sessionId,
-            editedPaths
-              .map((fp) => (fp || "").split(/[/\\]/).pop() || "")
-              .filter(Boolean),
-          );
-          // Also track for commit gate
-          recordCommitEdit(cwd, loop.sessionId, editedPaths.filter(Boolean));
-        }
+      const mostRecent = activeLoops[activeLoops.length - 1];
+      if (mostRecent.sessionId) {
+        recordEditedFile(
+          cwd,
+          mostRecent.sessionId,
+          editedPaths
+            .map((fp) => (fp || "").split(/[\/\\]/).pop() || "")
+            .filter(Boolean),
+        );
+        // Also track for commit gate
+        recordCommitEdit(cwd, mostRecent.sessionId, editedPaths.filter(Boolean));
+        // Session-scoped edit tracking (prevents cross-session contamination)
+        sessionScopedEditTracker(sessionsDir, mostRecent.sessionId,
+          editedPaths.map((fp) => (fp || "").split(/[\/\\]/).pop() || "").filter(Boolean));
       }
     }
   } catch {}
@@ -108,12 +129,61 @@ export function trackAuditActions(toolName, cwd) {
   if (!READ_TOOLS.includes(toolName)) return;
   try {
     const activeLoops = readAllActiveLoops(cwd);
-    for (const loop of activeLoops) {
-      if (loop.sessionId) {
-        recordAuditAction(cwd, loop.sessionId);
+    // Only register audit actions for the MOST RECENT loop.
+    if (activeLoops.length > 0) {
+      const mostRecent = activeLoops[activeLoops.length - 1];
+      if (mostRecent.sessionId) {
+        recordAuditAction(cwd, mostRecent.sessionId);
       }
     }
   } catch {}
+}
+
+
+/**
+ * Unified post-tool action tracker — reads loops ONCE and handles both edits and audit actions.
+ * Use this instead of calling trackEditedFiles + trackAuditActions separately.
+ * @param {string} toolName
+ * @param {object} toolInput
+ * @param {string} sessionsDir
+ * @param {string} cwd
+ */
+export function trackPostToolActions(toolName, toolInput, sessionsDir, cwd) {
+  const isEditTool = EDIT_TOOLS.includes(toolName);
+  const isReadTool = READ_TOOLS.includes(toolName);
+  if (!isEditTool && !isReadTool) return;
+
+  // Read loops ONCE for both operations
+  let mostRecent = null;
+  try {
+    const activeLoops = readAllActiveLoops(cwd);
+    if (activeLoops.length > 0) {
+      mostRecent = activeLoops[activeLoops.length - 1];
+    }
+  } catch {}
+
+  if (isEditTool) {
+    const editedPaths = getEditPaths(toolName, toolInput);
+    for (const fp of editedPaths) {
+      appendEditTracker(sessionsDir, fp);
+      const basename = (fp || "").split(/[\/\\]/).pop() || "";
+      appendPipelineEdit(sessionsDir, basename);
+    }
+    if (mostRecent?.sessionId) {
+      recordEditedFile(
+        cwd,
+        mostRecent.sessionId,
+        editedPaths.map((fp) => (fp || "").split(/[\/\\]/).pop() || "").filter(Boolean),
+      );
+      recordCommitEdit(cwd, mostRecent.sessionId, editedPaths.filter(Boolean));
+      sessionScopedEditTracker(sessionsDir, mostRecent.sessionId,
+        editedPaths.map((fp) => (fp || "").split(/[\/\\]/).pop() || "").filter(Boolean));
+    }
+  }
+
+  if (isReadTool && mostRecent?.sessionId) {
+    recordAuditAction(cwd, mostRecent.sessionId);
+  }
 }
 
 /** Pipeline Integration Audit — checks for gaps in multi-file edits. */

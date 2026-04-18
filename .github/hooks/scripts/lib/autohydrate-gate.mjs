@@ -292,7 +292,7 @@ export function analyzeRelevance(chatHistory) {
  * Returns { decision, context } where decision is "deny" or "allow".
  *
  * BLOCKING: returns "deny" to force the agent to document first.
- * The agent MUST call documentLearning() before sending synthesis.
+ * The agent MUST call projectBrain_toolbox({ tool: "writeMemory" }) before sending synthesis.
  *
  * @param {string} cwd
  * @param {string} sessionId
@@ -302,9 +302,18 @@ export function analyzeRelevance(chatHistory) {
 export function evaluateAutohydrateGate(cwd, sessionId, chatHistory) {
   const state = readAutohydrateState(cwd, sessionId);
 
-  // ── Bypass toggle: if user deliberately enabled bypass, allow ──
+  // ── Bypass toggle: if user approved bypass AND not expired, allow ──
   if (state.autohydrateBypass) {
-    return { decision: "allow", context: "" };
+    const expiresAt = state.bypassExpiresAt || 0;
+    if (expiresAt && Date.now() > expiresAt) {
+      // Bypass expired — auto-disable
+      state.autohydrateBypass = false;
+      delete state.bypassExpiresAt;
+      delete state.bypassReason;
+      writeAutohydrateState(cwd, sessionId, state);
+    } else {
+      return { decision: "allow", context: "" };
+    }
   }
 
   // ── Recent documentation: if agent documented in last 60 seconds, allow ──
@@ -323,6 +332,18 @@ export function evaluateAutohydrateGate(cwd, sessionId, chatHistory) {
       return { decision: "allow", context: "" };
     }
     // If verdict is "valuable", continue to pattern analysis as confirmation
+  }
+
+  // ── Inline heuristic: auto-classify obviously mundane synthesis ──
+  if (!classification && chatHistory) {
+    const trimmed = chatHistory.trim();
+    const isMundane =
+      trimmed.length < 150 ||
+      /^(listo|done|ok|entendido|got it|noted|cool|thanks|gracias|perfecto|confirmado|sí|si|claro)/i.test(trimmed) ||
+      (trimmed.length < 300 && !/(bug|error|fix|soluc|causa|descubr|patr[oó]n|crash|fail|broken|because|root.?cause|workaround|learn)/i.test(trimmed));
+    if (isMundane) {
+      return { decision: "allow", context: "" };
+    }
   }
 
   // ── Analyze relevance ──
@@ -349,44 +370,27 @@ export function evaluateAutohydrateGate(cwd, sessionId, chatHistory) {
  */
 function buildDenyMessage(score, triggers) {
   return `
-⛔ AUTOHYDRATE GATE BLOCKED — KNOWLEDGE CAPTURE REQUIRED
+⛔ AUTOHYDRATE GATE — DOCUMENTA ANTES DE CONTINUAR
 
-Relevancia detectada: ${score}/100
-Triggers: ${triggers}
+Relevancia: ${score}/100 | Triggers: ${triggers}
 
-Este round contiene información valiosa que DEBE documentarse antes de continuar.
-
-⚙️ ACCIÓN REQUERIDA:
-Documenta los hallazgos usando projectBrain_toolbox con documentLearning:
+Este round contiene información valiosa. Documéntala con writeMemory:
 
 \`\`\`
-documentLearning({
-  file: "04_LEARNINGS.md" | "05_TROUBLESHOOTING.md",
-  title: "[Descriptive title 20-100 chars]",
-  tags: "keyword1, keyword2, keyword3",
-  status: "resolved" | "pending" | "blocked",
-  context: "[Background — what led to this] (50+ chars)",
-  problem: "[The challenge encountered] (50+ chars)",
-  rootCause: "[Why it happened] (50+ chars)",
-  solution: "[What fixed it] (50+ chars if status=resolved)",
-  lessonsLearned: "[Key takeaways] (30+ chars)"
+projectBrain_toolbox({ tool: "writeMemory",
+  file: "04_LEARNINGS.md" o "05_TROUBLESHOOTING.md",
+  title: "[Título descriptivo]",
+  tags: "keyword1, keyword2",
+  status: "resolved" | "pending",
+  context: "[Qué se estaba haciendo]",
+  problem: "[El problema encontrado]",
+  rootCause: "[Por qué ocurrió]",
+  solution: "[Cómo se resolvió]",
+  lessonsLearned: "[Lecciones clave]"
 })
 \`\`\`
 
-**GUÍA RÁPIDA**:
-• Para bugs/errores → file: "05_TROUBLESHOOTING.md"
-• Para patterns/learnings → file: "04_LEARNINGS.md"
-
-**BYPASS ALTERNATIVO**:
-Si consideras que esto NO contiene aprendizajes valiosos, llama:
-\`\`\`
-projectBrain_toolbox({
-  tool: "autohydrateClassify",
-  sessionId: "[current sessionId]",
-  synthesis: "[your synthesis text]"
-})
-\`\`\`
-
-🔴 NO envíes síntesis hasta documentar o usar autohydrateClassify.
+Bugs/errores → "05_TROUBLESHOOTING.md" | Patterns/learnings → "04_LEARNINGS.md"
+Después de documentar, re-envía tu síntesis.
   `.trim();
 }

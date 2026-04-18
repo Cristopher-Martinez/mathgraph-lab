@@ -11,7 +11,6 @@
  *   stdin  → { tool_name, tool_input, tool_use_id, cwd, sessionId }
  *   stdout → { continue, hookSpecificOutput: { permissionDecision, permissionDecisionReason, additionalContext } }
  */
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -66,9 +65,8 @@ const PIPELINE_MAP = {
 guardedHook("pre-tool-security", async (input) => {
   const { evaluateAuditGate, isUrgentMessage, recordUrgentMessage } =
     await import("./lib/audit-gate.mjs");
-  const { evaluateAutohydrateGate } = await import(
-    "./lib/autohydrate-gate.mjs"
-  );
+  const { evaluateAutohydrateGate } =
+    await import("./lib/autohydrate-gate.mjs");
   const { evaluateCommitGate } = await import("./lib/commit-gate.mjs");
   const { evaluateImmunityGate } = await import("./lib/immunity-gate.mjs");
   const { saveToolCheckpoint, summarizeToolInput } =
@@ -140,7 +138,7 @@ guardedHook("pre-tool-security", async (input) => {
         if (orig) orig.read = true;
       }
       try {
-        const tmp = mailboxFile + ".tmp." + process.pid;
+        const tmp = mailboxFile + ".tmp." + process.pid + "." + Date.now();
         writeFileSync(tmp, JSON.stringify(mailbox, null, 2), "utf8");
         renameSync(tmp, mailboxFile);
       } catch {
@@ -626,31 +624,6 @@ guardedHook("pre-tool-security", async (input) => {
     }
   }
 
-  // ═══════════════════════════════════════════════════════
-  // 4. GUARD commits to master/main
-  // ═══════════════════════════════════════════════════════
-  if (toolName === "run_in_terminal") {
-    const cmd = toolInput.command || "";
-    if (/git\s+(commit|merge|push)/i.test(cmd)) {
-      try {
-        const branch = execFileSync("git", ["branch", "--show-current"], {
-          cwd,
-          encoding: "utf8",
-          timeout: 3000,
-        }).trim();
-        if (branch === "master" || branch === "main") {
-          return emit(
-            "ask",
-            `You are on branch '${branch}'. Proceed with git operation?`,
-            combinedContext,
-          );
-        }
-      } catch {
-        /* can't detect branch, allow */
-      }
-    }
-  }
-
   // ═══════════════════════════════════════════════════════  // 5. 🧬 IMMUNITY GATE: Detect known error patterns before repetition
   // ═══════════════════════════════════════════════════════════════════
   {
@@ -665,5 +638,93 @@ guardedHook("pre-tool-security", async (input) => {
 
   // ═══════════════════════════════════════════════════════════════════  // DEFAULT: Allow everything else
   // ═══════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 6. 🔐 INTENT CLASSIFICATION GATE (agent-governance pattern)
+  //    - Secret exposure detection in written file content
+  //    - Prompt injection detection in hook/agent files
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    const editTools = [
+      "replace_string_in_file",
+      "create_file",
+      "multi_replace_string_in_file",
+    ];
+    if (editTools.includes(toolName)) {
+      // Collect all file paths + content being written
+      const writes = [];
+      if (toolName === "multi_replace_string_in_file") {
+        for (const r of toolInput.replacements || []) {
+          writes.push({ path: r.filePath || "", content: r.newString || "" });
+        }
+      } else {
+        writes.push({
+          path: toolInput.filePath || "",
+          content: toolInput.newString || toolInput.content || "",
+        });
+      }
+
+      // Secret exposure patterns (high-confidence only — avoid false positives)
+      const SECRET_PATTERNS = [
+        { re: /ghp_[a-zA-Z0-9]{36,}/, label: "GitHub PAT" },
+        {
+          re: /github_pat_[a-zA-Z0-9_]{79,}/,
+          label: "GitHub fine-grained PAT",
+        },
+        { re: /sk-[a-zA-Z0-9]{48,}/, label: "OpenAI API key" },
+        { re: /sk-proj-[a-zA-Z0-9_-]{80,}/, label: "OpenAI project key" },
+        {
+          re: /CLOUDFLARE_API_TOKEN=[a-zA-Z0-9_-]{35,}/,
+          label: "Cloudflare token",
+        },
+        {
+          re: /PrivateKey\s*=\s*[a-zA-Z0-9+/=]{44}/,
+          label: "WireGuard private key",
+        },
+      ];
+
+      // Prompt injection patterns (only check hook/agent files)
+      const INJECTION_PATTERNS = [
+        /ignore\s+(previous|above|all)\s+(instructions?|rules?)/i,
+        /disregard\s+(your|all)\s+(previous|earlier)/i,
+        /you\s+are\s+now\s+(a\s+)?(?!Jasper|Project\s+Brain)/i,
+      ];
+
+      for (const { path, content } of writes) {
+        // Skip test files and fixtures to avoid false positives
+        if (/(__tests__|\.test\.|\.spec\.|fixtures?|examples?)/i.test(path))
+          continue;
+        if (!content) continue;
+
+        // Check for secret exposure in any file
+        for (const { re, label } of SECRET_PATTERNS) {
+          if (re.test(content)) {
+            return emit(
+              "deny",
+              `🔐 SECRET EXPOSURE DETECTED: ${label} pattern found in content being written to ${path}. Rotate credential + remove from code.`,
+              combinedContext,
+            );
+          }
+        }
+
+        // Check for prompt injection in hook/agent files specifically
+        const isHookOrAgent =
+          /\.(agent\.md|mjs|instructions\.md)$/i.test(path) &&
+          /hooks|agents|\.github/i.test(path);
+        if (isHookOrAgent) {
+          for (const re of INJECTION_PATTERNS) {
+            if (re.test(content)) {
+              return emit(
+                "ask",
+                `🧠 POSSIBLE PROMPT INJECTION in ${path}: pattern "${re.source}" detected in content. Verify this is intentional before proceeding.`,
+                combinedContext,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
   return emit("allow", "No security concerns.", combinedContext);
 });

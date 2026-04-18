@@ -274,17 +274,24 @@ export function evaluateCommitGate(cwd, sessionId) {
         ["ls-files", "--others", "--exclude-standard"],
         { cwd, encoding: "utf8" },
       ).trim();
-      // Filter auto-generated paths (same as uncommittedCount below)
-      const autoGenPaths = ["docs/memory/", ".brain-loops/", ".project-brain/"];
+      // Filter auto-generated paths (build artifacts + memory files)
+      const autoGenPaths = [
+        "docs/memory/",
+        ".brain-loops/",
+        ".project-brain/",
+        "static/hooks/",    // synced by sync-hooks.mjs during build
+        "hooks-version.json", // auto-updated by build
+      ];
       const isCodeChange = (line) =>
-        !autoGenPaths.some((p) => line.includes(p));
-      const hasDiffChanges = diff && diff.split("\n").some(isCodeChange);
-      const hasUntrackedChanges =
-        untracked && untracked.split("\n").some(isCodeChange);
-      if (hasDiffChanges || hasUntrackedChanges) {
+        line.trim() && !autoGenPaths.some((p) => line.includes(p));
+      const diffLines = diff ? diff.split("\n").filter(isCodeChange) : [];
+      const untrackedLines = untracked ? untracked.split("\n").filter(isCodeChange) : [];
+      const blockingFiles = [...diffLines, ...untrackedLines].filter(Boolean);
+      if (blockingFiles.length > 0) {
+        const fileList = blockingFiles.map((f) => `  - ${f}`).join("\n");
         return {
           decision: "deny",
-          context: `⛔ QUALITY GATE BLOCKED — BRANCH PROTECTION: Rama protegida "${branch}" — hay cambios sin commit.\nACCIÓN REQUERIDA: Haz commit con commitCheckpoint o activa el bypass toggle antes de enviar síntesis.\nRamas protegidas: ${protectedBranches.join(", ")}.`,
+          context: `⛔ QUALITY GATE BLOCKED — BRANCH PROTECTION: Rama protegida "${branch}" — hay cambios sin commit.\n\nArchivos pendientes (${blockingFiles.length}):\n${fileList}\n\nACCIÓN REQUERIDA: Haz commit con commitCheckpoint o activa el bypass toggle.\nRamas protegidas: ${protectedBranches.join(", ")}.`,
         };
       }
     }
@@ -297,7 +304,12 @@ export function evaluateCommitGate(cwd, sessionId) {
   // Check actual git status (more reliable than tracked edits alone)
   const gitStatus = getGitStatus(cwd);
   const uncommittedCount = gitStatus.filter(
-    (l) => !l.includes(".brain-loops/") && !l.includes(".project-brain/") && !l.includes("docs/memory/"),
+    (l) =>
+      !l.includes(".brain-loops/") &&
+      !l.includes(".project-brain/") &&
+      !l.includes("docs/memory/") &&
+      !l.includes("static/hooks/") &&
+      !l.includes("hooks-version.json"),
   ).length;
 
   // No uncommitted code changes -> allow

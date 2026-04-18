@@ -48,8 +48,9 @@ guardedHook("session-stop", async (input) => {
   // ═══ LOOP GATE: block stop if active loops exist (one mechanical chance) ═══
   // ANTI-AMNESIA: The LLM may "forget" the loop after context compaction and try
   // to respond directly. Uses assertive BLOCKED messaging.
+  let earlyLoops = [];
   if (existsSync(memoryDir)) {
-    const earlyLoops = readAllActiveLoops(cwd);
+    earlyLoops = readAllActiveLoops(cwd);
     if (earlyLoops.length > 0) {
       const loopIds = earlyLoops
         .map((l) => `sessionId="${l.sessionId}"`)
@@ -63,6 +64,7 @@ guardedHook("session-stop", async (input) => {
             `Agent is BLOCKED from direct responses. MUST call loopAwaitInput(sessionId, synthesis).`,
             `This gate reads from disk — survives context compaction. Trust it.`,
           ].join(" "),
+          additionalContext: `⚠️ STOP BLOCKED — ${earlyLoops.length} ACTIVE LOOP(s): ${loopIds}. Agent MUST call loopAwaitInput, not respond directly.`,
         },
       };
     }
@@ -92,9 +94,8 @@ guardedHook("session-stop", async (input) => {
   const now = new Date().toISOString();
 
   // ═══ 1. Write handoff (human-readable) ═══════════════════════════════════
-  // Check for active loops (multi-loop safe, TTL-aware)
-  // Loop protocol enforcement — assertive BLOCKED messaging in handoff
-  const allLoops = readAllActiveLoops(cwd);
+  // Check for active loops (reuse earlyLoops from gate check — EC-3 fix: eliminates redundant FS read)
+  const allLoops = earlyLoops || readAllActiveLoops(cwd);
   const loopSection =
     allLoops.length > 0
       ? allLoops

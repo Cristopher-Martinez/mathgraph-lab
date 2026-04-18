@@ -4,12 +4,49 @@
  * into EVERY new agent session (not just @brain).
  * This is the primary identity injection mechanism — zero tool call cost.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { guardedHook } from "./lib/hook-guard.mjs";
 import { getMemoryDirWithFallback } from "./lib/brain-paths.mjs";
 
 guardedHook("session-start", async (input) => {
+  // ── Auto-update hooks if bundled extension version is newer ──────────────
+  // Runs at session start so projects stay up-to-date without needing a
+  // VS Code reload after the extension is updated.
+  try {
+    const extDir = join(
+      homedir(),
+      ".vscode",
+      "extensions",
+      "crismart.project-brain-0.1.0",
+    );
+    const bundledVersionFile = join(extDir, "static", "hooks", "hooks-version.json");
+    const cwd = input.cwd || process.cwd();
+    const deployedVersionFile = join(cwd, ".github", "hooks", "hooks-version.json");
+
+    if (existsSync(bundledVersionFile) && existsSync(deployedVersionFile)) {
+      const bundled = JSON.parse(readFileSync(bundledVersionFile, "utf8")).version || "";
+      const deployed = JSON.parse(readFileSync(deployedVersionFile, "utf8")).version || "";
+
+      if (bundled && bundled !== deployed) {
+        // Copy scripts + lib directories from extension to project
+        const srcScripts = join(extDir, "static", "hooks", "scripts");
+        const destScripts = join(cwd, ".github", "hooks", "scripts");
+        if (existsSync(srcScripts)) {
+          cpSync(srcScripts, destScripts, { recursive: true, force: true });
+        }
+        // Update version marker
+        cpSync(bundledVersionFile, deployedVersionFile, { force: true });
+        // eslint-disable-next-line no-console
+        console.error(`[session-start] Hooks auto-updated: ${deployed || "none"} → ${bundled}`);
+      }
+    }
+  } catch {
+    /* non-critical — never block session start */
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   const { predictContext } = await import("./lib/context-predictor.mjs");
   const {
     formatCheckpointForInjection,
@@ -134,7 +171,9 @@ guardedHook("session-start", async (input) => {
         `**Goal**: ${loop.goal || "(no goal)"}\n` +
         `**Started**: ${loop.startedAt || "unknown"}\n` +
         `**CRITICAL**: You are inside an active loop. ALL output MUST go through \`loopAwaitInput(sessionId="${loop.sessionId}", synthesis)\`.\n` +
-        `NEVER respond directly to the user. 🔁 Gate: "Am I in a loop? → loopAwaitInput. No exceptions."`,
+        `NEVER respond directly to the user. 🔁 Gate: "Am I in a loop? → loopAwaitInput. No exceptions.
+
+**NOTE**: If the user's message does NOT mention this loop or its goal, the loop may be stale from a previous session. In that case, call loopEnd(sessionId) first, then respond normally."`,
     );
   } else if (allLoops.length > 1) {
     const items = allLoops

@@ -12,12 +12,17 @@ import {
   unlinkSync,
 } from "fs";
 import { join } from "path";
+import { getMemoryDirWithFallback } from "./brain-paths.mjs";
 
 /** Strip UTF-8 BOM — PowerShell writes BOM by default, crashes JSON.parse. */
 const stripBom = (s) => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
 
 /** Max age for signal files before considered stale (4 hours) */
-const LOOP_SIGNAL_TTL_MS = 4 * 60 * 60 * 1000;
+const LOOP_SIGNAL_TTL_MS = 1 * 60 * 60 * 1000;
+
+/** In-memory cache for readAllActiveLoops — avoids repeated filesystem reads within a single hook invocation. */
+let _loopCache = { loops: [], dirMtime: 0, maxFileMtime: 0, ts: 0, cwd: "" };
+const LOOP_CACHE_TTL_MS = 3000; // 3 seconds
 
 /**
  * Validate and read a single loop signal file with TTL check.
@@ -36,7 +41,22 @@ function readAndValidateLoop(filePath) {
       return null;
     }
     const data = JSON.parse(stripBom(readFileSync(filePath, "utf8")));
-    return data.sessionId ? data : null;
+    if (!data.sessionId) return null;
+    // Heartbeat check: if heartbeat exists and is >10 min old, consider stale
+    if (data.lastHeartbeat) {
+      const hbAge = Date.now() - new Date(data.lastHeartbeat).getTime();
+      if (hbAge > 10 * 60 * 1000) {
+        try { unlinkSync(filePath); } catch {}
+        return null;
+      }
+    } else {
+      // No heartbeat field (legacy signal) — use shorter TTL (15 min) to prevent ghost loops
+      if (Date.now() - stat.mtimeMs > 15 * 60 * 1000) {
+        try { unlinkSync(filePath); } catch {}
+        return null;
+      }
+    }
+    return data;
   } catch {
     return null;
   }
@@ -48,8 +68,9 @@ function readAndValidateLoop(filePath) {
  * @param {string} cwd - Workspace root
  * @returns {Array<{ sessionId: string, goal: string, startedAt: string }>}
  */
-export function readAllActiveLoops(cwd) {
-  const sessionsDir = join(cwd, "docs", "memory", "sessions");
+/** Uncached implementation — reads filesystem directly. */
+function _readAllActiveLoopsImpl(cwd) {
+  const sessionsDir = join(getMemoryDirWithFallback(cwd), "sessions");
   const results = [];
   const seenIds = new Set();
 
@@ -77,8 +98,51 @@ export function readAllActiveLoops(cwd) {
     }
   }
 
+  // Sort by startedAt (ISO) — deterministic order, most recent last
+  results.sort((a, b) => (a.startedAt || "").localeCompare(b.startedAt || ""));
   return results;
 }
+
+/**
+ * Read ALL active loop signals with in-memory cache (3s TTL).
+ * Avoids repeated filesystem reads when multiple functions call this per tool-use event.
+ * @param {string} cwd - Workspace root
+ * @returns {Array<{ sessionId: string, goal: string, startedAt: string }>}
+ */
+export function readAllActiveLoops(cwd) {
+  try {
+    const sessionsDir = join(getMemoryDirWithFallback(cwd), "sessions");
+    let dirMtime = 0;
+    let maxFileMtime = 0;
+    try {
+      dirMtime = statSync(sessionsDir).mtimeMs;
+      // Check max file mtime to detect heartbeat writes (which don't change dir mtime)
+      const sigFiles = readdirSync(sessionsDir).filter(
+        (f) => f.startsWith("active-loop-") && f.endsWith(".json"),
+      );
+      for (const sf of sigFiles) {
+        try {
+          const mt = statSync(join(sessionsDir, sf)).mtimeMs;
+          if (mt > maxFileMtime) maxFileMtime = mt;
+        } catch {}
+      }
+    } catch { /* dir may not exist */ }
+    if (
+      cwd === _loopCache.cwd &&
+      dirMtime === _loopCache.dirMtime &&
+      maxFileMtime === _loopCache.maxFileMtime &&
+      Date.now() - _loopCache.ts < LOOP_CACHE_TTL_MS
+    ) {
+      return _loopCache.loops;
+    }
+    const loops = _readAllActiveLoopsImpl(cwd);
+    _loopCache = { loops, dirMtime, maxFileMtime, ts: Date.now(), cwd };
+    return loops;
+  } catch {
+    return _readAllActiveLoopsImpl(cwd);
+  }
+}
+
 
 /**
  * Read a single active loop signal (backward-compat wrapper).
